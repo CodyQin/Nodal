@@ -57,7 +57,7 @@ function App() {
           <div className="inline-flex items-center justify-center p-4 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-2xl mb-6 border border-slate-700/50 backdrop-blur-sm">
             <Network className="w-12 h-12 text-purple-400 mr-4" />
             <h1 className="text-5xl sm:text-6xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 animate-pulse">
-              StoryWeaver AI
+              Nodal
             </h1>
           </div>
           <p className="text-slate-400 text-lg max-w-2xl mx-auto">
@@ -216,7 +216,7 @@ function App() {
       
       {/* Footer */}
       <footer className="mt-16 py-8 text-center text-slate-600 text-sm border-t border-slate-800/50">
-        <p>StoryWeaver AI • Dynamic Social Network Graph Generator • Analyze narrative structures with AI</p>
+        <p>Nodal • Dynamic Social Network Graph Generator • Analyze narrative structures with AI</p>
       </footer>
     </div>
   );
