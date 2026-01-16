@@ -102,6 +102,7 @@ async def analyze_content(
             raise HTTPException(status_code=400, detail="No content provided")
 
         print(f"Extracted text length: {len(final_text)} characters")
+        print(f"Extracted text preview: {final_text[:500]}...")  # 打印前500个字符预览
 
         # 3. 发送给 Gemini
         response = client.models.generate_content(
@@ -112,8 +113,45 @@ async def analyze_content(
             )
         )
 
-        return json.loads(response.text)
+        # 解析并打印生成的JSON结果
+        parsed_response = json.loads(response.text)
+        print("Generated analysis result:")
+        print(json.dumps(parsed_response, indent=2, ensure_ascii=False))
+        
+        # 额外打印一些关键信息
+        timeline = parsed_response.get('timeline', [])
+        print(f"\nTimeline phases count: {len(timeline)}")
+        
+        for i, phase in enumerate(timeline):
+            # 确保phase是字典类型，再使用.get()方法
+            if isinstance(phase, dict):
+                print(f"Phase {i+1}: {phase.get('phase_name', 'N/A')}")
+                print(f"  Summary: {phase.get('summary', 'N/A')[:100]}...")
+                print(f"  Nodes count: {len(phase.get('nodes', []))}")
+                print(f"  Edges count: {len(phase.get('edges', []))}")
+                
+                # 打印第一个节点的信息作为示例
+                nodes = phase.get('nodes', [])
+                if nodes and len(nodes) > 0:
+                    first_node = nodes[0]
+                    if isinstance(first_node, dict):
+                        print(f"  First node: {first_node.get('label', 'N/A')} (ID: {first_node.get('id', 'N/A')}, Centrality: {first_node.get('centrality', 'N/A')})")
+                        
+                # 打印第一个边的信息作为示例
+                edges = phase.get('edges', [])
+                if edges and len(edges) > 0:
+                    first_edge = edges[0]
+                    if isinstance(first_edge, dict):
+                        print(f"  First edge: {first_edge.get('source', 'N/A')} -> {first_edge.get('target', 'N/A')} ({first_edge.get('relation', 'N/A')}, Sentiment: {first_edge.get('sentiment', 'N/A')})")
+            else:
+                print(f"Phase {i+1}: Invalid phase data (not a dictionary)")
 
+        return parsed_response
+
+    except json.JSONDecodeError as je:
+        print(f"JSON Decode Error: {je}")
+        print(f"Raw response: {response.text if 'response' in locals() else 'Response not available'}")
+        raise HTTPException(status_code=500, detail=f"Invalid JSON response from AI: {str(je)}")
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
