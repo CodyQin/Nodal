@@ -311,7 +311,7 @@ async def analyze_content(
         )
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-3-flash-preview",
             contents=[SYSTEM_PROMPT, user_prompt, file_part],
         )
 
