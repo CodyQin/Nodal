@@ -1,7 +1,9 @@
+
 import os
 import json
 import io
 import re
+import logging
 from collections import Counter
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
@@ -13,10 +15,28 @@ from google.genai import types
 from pypdf import PdfReader
 from docx import Document
 
-load_dotenv()
+# --- Logging Configuration ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("nodal_backend.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Prioritize loading .env.local, then .env
+if os.path.exists(".env.local"):
+    load_dotenv(".env.local")
+    logger.info("Loaded environment from .env.local")
+else:
+    load_dotenv(".env")
+    logger.info("Loaded environment from .env")
 
 app = FastAPI()
 
+# Configure CORS to be safe, although Vite proxy handles cross-origin in development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,9 +45,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Gemini Client
-# Uses the provided key as a fallback if the environment variable is not set
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", "AIzaSyApMlA5bIrytBvhrGrztLncgDQ2wLYOc38"))
+# Initialize Gemini Client using the environment variable API_KEY or GEMINI_API_KEY
+# We check both to be flexible with common naming conventions
+api_key = os.getenv("API_KEY") or os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    logger.error("No API key found! Please ensure API_KEY or GEMINI_API_KEY is set in .env.local")
+    client = None
+else:
+    client = genai.Client(api_key=api_key)
+    logger.info("Gemini client successfully initialized from environment variable.")
 
 # --- Helper Functions ---
 def extract_text_from_pdf(file_bytes: bytes) -> str:
@@ -39,7 +66,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
             text += page_text + "\n"
         return text
     except Exception as e:
-        print(f"PDF Parse Error: {e}")
+        logger.error(f"PDF Parse Error: {e}")
         return ""
 
 def extract_text_from_docx(file_bytes: bytes) -> str:
@@ -57,7 +84,7 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
                         parts.append(text)
         return "\n".join(parts)
     except Exception as e:
-        print(f"Docx Parse Error: {e}")
+        logger.error(f"Docx Parse Error: {e}")
         return ""
 
 def _ensure_edge_ids(edges: list) -> None:
@@ -96,8 +123,6 @@ def _extract_json_text(raw: str) -> str:
 def _add_degree_and_size(parsed: dict) -> dict:
     nodes = parsed.get("nodes", [])
     edges = parsed.get("edges", [])
-    
-    # Just in case model returns old format, we handle missing fields gracefully
     detected_language = parsed.get("detected_language", "English")
 
     if not isinstance(nodes, list) or not isinstance(edges, list):
@@ -108,8 +133,6 @@ def _add_degree_and_size(parsed: dict) -> dict:
         if isinstance(n, dict) and n.get("id") is not None:
             node_ids.append(str(n["id"]))
             n["id"] = str(n["id"])
-            
-            # Polyfill if model missed bilingual fields (fallback)
             if "label_en" not in n and "label" in n:
                 n["label_en"] = n["label"]
                 n["label_original"] = n["label"]
@@ -118,7 +141,6 @@ def _add_degree_and_size(parsed: dict) -> dict:
                 n["description_original"] = n["description"]
 
     node_set = set(node_ids)
-
     degree = Counter()
     valid_edges = []
     for e in edges:
@@ -134,8 +156,6 @@ def _add_degree_and_size(parsed: dict) -> dict:
             valid_edges.append(e)
             degree[s] += 1
             degree[t] += 1
-            
-            # Polyfill relation fields
             rel = e.get("relation", {})
             if "label_en" not in rel and "label" in rel:
                 rel["label_en"] = rel["label"]
@@ -156,7 +176,6 @@ def _add_degree_and_size(parsed: dict) -> dict:
         if not isinstance(vis, dict):
             vis = {}
             n["visual"] = vis
-        # Base size 20, max scale based on degree
         vis["size"] = 15 + (d * 5)
 
     _ensure_edge_ids(valid_edges)
@@ -169,7 +188,6 @@ def _add_degree_and_size(parsed: dict) -> dict:
         "edges": valid_edges
     }
 
-# ====== Prompts ======
 SYSTEM_PROMPT = """
 You are a graph data generator.
 Your task is to extract all the people and their relationships from the input content and output a single JSON object.
@@ -231,19 +249,19 @@ Your goal is to answer user questions about the story's characters, relationship
 Be concise, insightful, and refer to specific relationships defined in the context.
 """
 
-# --- Pydantic Models ---
 class ChatRequest(BaseModel):
     message: str
-    context: Dict[str, Any] # Expecting the graph JSON
+    context: Dict[str, Any]
     history: List[Dict[str, str]] = []
-
-# --- Endpoints ---
 
 @app.post("/api/analyze")
 async def analyze_content(
     file: UploadFile = File(None),
     text_content: str = Form(None)
 ):
+    if not client:
+        raise HTTPException(status_code=500, detail="Gemini client not initialized. Check your API_KEY in .env.local")
+        
     try:
         final_text = ""
         if file:
@@ -257,7 +275,7 @@ async def analyze_content(
         elif text_content:
             final_text = text_content
 
-        if not final_text.strip():
+        if not final_text or not final_text.strip():
             raise HTTPException(status_code=400, detail="No content provided")
 
         file_part = types.Part.from_bytes(
@@ -268,57 +286,45 @@ async def analyze_content(
         response = client.models.generate_content(
             model="gemini-3-flash-preview",
             contents=[SYSTEM_PROMPT, USER_PROMPT_TEMPLATE, file_part],
-            config={
-                "response_mime_type": "application/json"
-            }
+            config={"response_mime_type": "application/json"}
         )
 
         raw = response.text
         json_text = _extract_json_text(raw)
         parsed = json.loads(json_text)
         final_graph = _add_degree_and_size(parsed)
-        
+
         return final_graph
 
     except Exception as e:
-        print(f"Analysis Error: {e}")
+        logger.error(f"Unexpected Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
 async def chat_with_context(request: ChatRequest):
+    if not client:
+        raise HTTPException(status_code=500, detail="Gemini client not initialized. Check your API_KEY in .env.local")
+
     try:
-        # Format history
         history_str = ""
         if request.history:
-            for msg in request.history[-10:]: # Limit to last 10 turns to save context
+            for msg in request.history[-10:]:
                 role = "User" if msg.get("role") == "user" else "Assistant"
                 history_str += f"{role}: {msg.get('content')}\n"
 
-        # Construct the context for Gemini
         graph_context = json.dumps(request.context, ensure_ascii=False)
-        
-        prompt = f"""
-        CONTEXT (Knowledge Graph JSON):
-        {graph_context}
-
-        CONVERSATION HISTORY:
-        {history_str}
-
-        USER QUESTION:
-        {request.message}
-        """
+        prompt = f"CONTEXT (Knowledge Graph JSON):\n{graph_context}\n\nCONVERSATION HISTORY:\n{history_str}\n\nUSER QUESTION:\n{request.message}"
 
         response = client.models.generate_content(
             model="gemini-3-flash-preview",
             contents=[CHAT_SYSTEM_PROMPT, prompt]
         )
-        
         return {"response": response.text}
-
     except Exception as e:
-        print(f"Chat Error: {e}")
+        logger.error(f"Chat Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
+    # Local backend running on port 8000
     uvicorn.run(app, host="0.0.0.0", port=8000)
