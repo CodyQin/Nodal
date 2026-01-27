@@ -2,10 +2,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2 } from 'lucide-react';
 import { chatWithContext } from '../services/api';
-import { GraphData, ChatMessage } from '../types';
+import { AnalysisResult, ChatMessage } from '../types';
 
 interface ChatPanelProps {
-  graphData: GraphData;
+  analysisResult: AnalysisResult | null;
 }
 
 /**
@@ -48,9 +48,9 @@ const FormattedMessage: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ graphData }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ analysisResult }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'ai', content: 'Hi! I\'ve analyzed the story graph. Ask me anything about the characters or relationships!' }
+    { role: 'ai', content: 'Hi! I\'ve analyzed the story graph. Ask me anything about the characters, relationships, or how the plot develops across phases!' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -64,8 +64,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ graphData }) => {
     scrollToBottom();
   }, [messages]);
 
+  // Reset chat when a new analysis is loaded
+  useEffect(() => {
+    if (analysisResult) {
+       setMessages([{ role: 'ai', content: 'Hi! I\'ve analyzed the story graph. Ask me anything about the characters, relationships, or how the plot develops across phases!' }]);
+    }
+  }, [analysisResult]);
+
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !analysisResult) return;
 
     const userMsg = input.trim();
     setInput('');
@@ -73,35 +80,54 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ graphData }) => {
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setIsLoading(true);
 
-    const sanitizeGraphForAI = (data: GraphData): any => {
-      return {
-        detected_language: data.detected_language,
-        total_characters: data.total_characters,
-        nodes: data.nodes.map(n => ({
-          id: n.id,
-          label_original: n.label_original,
-          label_en: n.label_en,
-          description_original: n.description_original,
-          description_en: n.description_en,
-          centrality: n.centrality,
-        })),
-        edges: data.edges.map(e => ({
-          id: e.id,
-          source: typeof e.source === 'object' ? (e.source as any).id : e.source,
-          target: typeof e.target === 'object' ? (e.target as any).id : e.target,
-          relation: {
-            type_original: e.relation.type_original,
-            type_en: e.relation.type_en,
-            label_original: e.relation.label_original,
-            label_en: e.relation.label_en,
-          }
-        }))
-      };
+    // Helper to sanitize a single graph's nodes/edges to save tokens/noise
+    const sanitizeGraphData = (nodes: any[], edges: any[]) => ({
+      nodes: nodes.map(n => ({
+        id: n.id,
+        label_original: n.label_original,
+        label_en: n.label_en,
+        description: n.description_en || n.description_original || n.description,
+      })),
+      edges: edges.map(e => ({
+        source: typeof e.source === 'object' ? (e.source as any).id : e.source,
+        target: typeof e.target === 'object' ? (e.target as any).id : e.target,
+        relation: {
+          type: e.relation.type_en || e.relation.type_original,
+          label: e.relation.label_en || e.relation.label_original,
+        }
+      }))
+    });
+
+    const prepareContext = (data: AnalysisResult): any => {
+      // 1. Timeline Mode (Rich Context)
+      if (data.timeline && data.timeline.length > 0) {
+        return {
+          type: "timeline_graph",
+          timeline: data.timeline.map(phase => ({
+            phase_id: phase.phase_id,
+            phase_name_original: phase.phase_name_original,
+            phase_name_en: phase.phase_name_en,
+            summary_original: phase.summary_original,
+            summary_en: phase.summary_en,
+            graph: sanitizeGraphData(phase.graph.nodes, phase.graph.edges)
+          }))
+        };
+      } 
+      
+      // 2. Single Graph Mode (Legacy/Fallback)
+      if (data.nodes) {
+        return {
+          type: "single_graph",
+          ...sanitizeGraphData(data.nodes, data.edges || [])
+        };
+      }
+
+      return {};
     };
 
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }));
-      const cleanContext = sanitizeGraphForAI(graphData);
+      const cleanContext = prepareContext(analysisResult);
       
       const response = await chatWithContext(userMsg, cleanContext, history);
       setMessages(prev => [...prev, { role: 'ai', content: response }]);
@@ -121,7 +147,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ graphData }) => {
           <Bot className="text-blue-500" />
           Graph Assistant
         </h3>
-        <p className="text-xs text-gray-400 mt-1">Analyzing character connections</p>
+        <p className="text-xs text-gray-400 mt-1">Analyzing character connections & timeline</p>
       </div>
 
       {/* Messages */}
@@ -166,13 +192,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ graphData }) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask about character arcs or secrets..."
+            placeholder="Ask about phases, summaries, or relationships..."
             className="flex-1 bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-gray-500 transition-all pr-12"
-            disabled={isLoading}
+            disabled={isLoading || !analysisResult}
           />
           <button
             onClick={handleSend}
-            disabled={isLoading || !input.trim()}
+            disabled={isLoading || !input.trim() || !analysisResult}
             className="absolute right-1.5 top-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white p-2 rounded-lg transition-all active:scale-95"
           >
             <Send size={18} />

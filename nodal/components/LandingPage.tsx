@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UploadCloud, FileText, ArrowRight, Github, Loader2, Sparkles, BrainCircuit, CheckCircle, Circle, XCircle, FileJson } from 'lucide-react';
 import { analyzeContent } from '../services/api';
-import { GraphData } from '../types';
+import { AnalysisResult } from '../types';
 import axios from 'axios';
 
 interface LandingPageProps {
-  onAnalysisComplete: (data: GraphData) => void;
+  onAnalysisComplete: (data: AnalysisResult) => void;
 }
 
 const THINKING_STEPS = [
   "Connecting to Gemini 3.0 Flash...",
   "Ingesting story content...",
   "Detecting language...",
+  "Analyzing timeline phases...",
   "Extracting character entities...",
   "Identifying social interactions...",
-  "Analyzing emotional context...",
-  "Calculating connection weights...",
+  "Calculating emotional weight...",
   "Building graph topology...",
   "Finalizing visualization data..."
 ];
@@ -60,13 +60,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
           const content = e.target?.result as string;
           const parsed = JSON.parse(content);
           
-          // Basic validation
-          if (!parsed.nodes || !Array.isArray(parsed.nodes) || !parsed.edges || !Array.isArray(parsed.edges)) {
-             throw new Error("Invalid JSON format. File must contain 'nodes' and 'edges' arrays.");
+          // Basic validation for either Timeline or legacy format
+          const isTimeline = parsed.timeline && Array.isArray(parsed.timeline);
+          const isGraph = parsed.nodes && Array.isArray(parsed.nodes);
+
+          if (!isTimeline && !isGraph) {
+             throw new Error("Invalid JSON format. File must contain 'timeline' or 'nodes'/'edges'.");
           }
 
           // Ensure types match
-          onAnalysisComplete(parsed as GraphData);
+          onAnalysisComplete(parsed as AnalysisResult);
         } catch (err: any) {
           setError("Failed to parse JSON: " + err.message);
         }
@@ -146,7 +149,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                <div className="flex items-center justify-between mb-6 relative z-10">
                  <h3 className="text-2xl font-bold text-white flex items-center gap-3">
                    <Loader2 className="animate-spin text-blue-500" />
-                   Analyzing Story...
+                   Analyzing Story Timeline...
                  </h3>
                  <button 
                    onClick={handleCancel}
@@ -187,7 +190,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
 
                <div className="mt-6 pt-4 border-t border-white/10 relative z-10">
                   <p className="text-xs text-gray-500 text-center animate-pulse">
-                    This may take up to 30 seconds depending on story length...
+                    This may take up to 60 seconds for detailed timeline analysis...
                   </p>
                </div>
             </div>
@@ -294,7 +297,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                    {activeTab === 'json' ? (
                      <>Load Graph <ArrowRight size={18} /></>
                    ) : (
-                     <>Generate Graph <ArrowRight size={18} /></>
+                     <>Generate Graph Timeline <ArrowRight size={18} /></>
                    )}
                 </button>
               </div>
