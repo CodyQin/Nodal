@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UploadCloud, FileText, ArrowRight, Github, Loader2, Sparkles, BrainCircuit, CheckCircle, Circle, XCircle, FileJson } from 'lucide-react';
+import { UploadCloud, FileText, ArrowRight, Github, Loader2, Sparkles, BrainCircuit, CheckCircle, Circle, XCircle, FileJson, Video, Youtube } from 'lucide-react';
 import { analyzeContent } from '../services/api';
 import { AnalysisResult } from '../types';
 import axios from 'axios';
@@ -21,10 +21,22 @@ const THINKING_STEPS = [
 ];
 
 const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
-  const [activeTab, setActiveTab] = useState<'text' | 'file' | 'json'>('text');
+  // Tabs: 'story' (Text/File), 'video' (URL/MP4), 'json' (Restore)
+  const [activeTab, setActiveTab] = useState<'story' | 'video' | 'json'>('story');
+  
+  // Story State (Text/File)
+  const [textMode, setTextMode] = useState<'paste' | 'upload'>('paste');
   const [textInput, setTextInput] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  
+  // Video State (URL/Upload)
+  const [videoMode, setVideoMode] = useState<'url' | 'upload'>('url');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+
+  // JSON State
   const [jsonFile, setJsonFile] = useState<File | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -78,9 +90,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
       return;
     }
 
-    // Handle Analysis (Text/File)
-    if (activeTab === 'text' && !textInput.trim()) return;
-    if (activeTab === 'file' && !file) return;
+    // Validation
+    if (activeTab === 'story') {
+       if (textMode === 'paste' && !textInput.trim()) return;
+       if (textMode === 'upload' && !file) return;
+    }
+    if (activeTab === 'video') {
+       if (videoMode === 'url' && !videoUrl.trim()) return;
+       if (videoMode === 'upload' && !videoFile) return;
+    }
 
     setLoading(true);
     
@@ -88,9 +106,25 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
     abortControllerRef.current = new AbortController();
 
     try {
+      // Determine what to send based on tab
+      let sendFile: File | null = null;
+      let sendText: string | null = null;
+      let sendVideoUrl: string | null = null;
+
+      if (activeTab === 'story') {
+        if (textMode === 'upload') sendFile = file;
+        if (textMode === 'paste') sendText = textInput;
+      }
+      
+      if (activeTab === 'video') {
+        if (videoMode === 'upload') sendFile = videoFile;
+        if (videoMode === 'url') sendVideoUrl = videoUrl;
+      }
+
       const data = await analyzeContent(
-        activeTab === 'file' ? file : null, 
-        activeTab === 'text' ? textInput : null,
+        sendFile, 
+        sendText,
+        sendVideoUrl,
         abortControllerRef.current.signal
       );
       onAnalysisComplete(data);
@@ -200,16 +234,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
               {/* Tabs */}
               <div className="flex border-b border-white/10">
                 <button
-                  onClick={() => setActiveTab('text')}
-                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'text' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                  onClick={() => setActiveTab('story')}
+                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'story' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                  <FileText size={18} /> Paste Text
+                  <FileText size={18} /> Text
                 </button>
                 <button
-                  onClick={() => setActiveTab('file')}
-                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'file' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                  onClick={() => setActiveTab('video')}
+                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'video' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                  <UploadCloud size={18} /> Upload File
+                  <Video size={18} /> Video
                 </button>
                 <button
                   onClick={() => setActiveTab('json')}
@@ -221,34 +255,108 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
 
               {/* Input Area */}
               <div className="p-6 bg-nodal-dark/50">
-                {activeTab === 'text' && (
-                  <textarea
-                    value={textInput}
-                    onChange={(e) => setTextInput(e.target.value)}
-                    placeholder="Paste your story text here (chapters, summaries, or full text)..."
-                    className="w-full h-48 bg-gray-800/50 border border-gray-600 rounded-lg p-4 text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none placeholder-gray-500 transition-all"
-                  />
+                {activeTab === 'story' && (
+                  <div className="h-48 flex flex-col gap-4">
+                     <div className="flex justify-center gap-4 mb-2">
+                       <button 
+                         onClick={() => setTextMode('paste')}
+                         className={`px-4 py-2 rounded-lg text-sm transition-colors ${textMode === 'paste' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                       >
+                         Paste Text
+                       </button>
+                       <button 
+                         onClick={() => setTextMode('upload')}
+                         className={`px-4 py-2 rounded-lg text-sm transition-colors ${textMode === 'upload' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                       >
+                         Upload File
+                       </button>
+                     </div>
+
+                     {textMode === 'paste' ? (
+                        <textarea
+                          value={textInput}
+                          onChange={(e) => setTextInput(e.target.value)}
+                          placeholder="Paste your story text here (chapters, summaries, or full text)..."
+                          className="flex-1 bg-gray-800/50 border border-gray-600 rounded-lg p-4 text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none placeholder-gray-500 transition-all"
+                        />
+                     ) : (
+                        <div className="flex-1 border-2 border-dashed border-gray-600 rounded-lg flex flex-col items-center justify-center bg-gray-800/30 hover:bg-gray-800/50 transition-colors relative">
+                          <input 
+                            type="file" 
+                            accept=".txt,.pdf,.docx"
+                            onChange={(e) => setFile(e.target.files?.[0] || null)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          />
+                          {file ? (
+                            <div className="text-center">
+                              <FileText className="w-10 h-10 text-blue-400 mx-auto mb-2" />
+                              <p className="text-white font-medium">{file.name}</p>
+                              <p className="text-sm text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
+                            </div>
+                          ) : (
+                            <div className="text-center text-gray-400 pointer-events-none">
+                              <UploadCloud className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                              <p>Click or drag file to upload</p>
+                              <p className="text-xs mt-1 opacity-50">PDF, DOCX, TXT supported</p>
+                            </div>
+                          )}
+                        </div>
+                     )}
+                  </div>
                 )}
-                
-                {activeTab === 'file' && (
-                  <div className="h-48 border-2 border-dashed border-gray-600 rounded-lg flex flex-col items-center justify-center bg-gray-800/30 hover:bg-gray-800/50 transition-colors relative">
-                    <input 
-                      type="file" 
-                      accept=".txt,.pdf,.docx"
-                      onChange={(e) => setFile(e.target.files?.[0] || null)}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    {file ? (
-                      <div className="text-center">
-                        <FileText className="w-10 h-10 text-blue-400 mx-auto mb-2" />
-                        <p className="text-white font-medium">{file.name}</p>
-                        <p className="text-sm text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
-                      </div>
+
+                {activeTab === 'video' && (
+                  <div className="h-48 flex flex-col gap-4">
+                    <div className="flex justify-center gap-4 mb-2">
+                       <button 
+                         onClick={() => setVideoMode('url')}
+                         className={`px-4 py-2 rounded-lg text-sm transition-colors ${videoMode === 'url' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                       >
+                         Video URL
+                       </button>
+                       <button 
+                         onClick={() => setVideoMode('upload')}
+                         className={`px-4 py-2 rounded-lg text-sm transition-colors ${videoMode === 'upload' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                       >
+                         Upload MP4
+                       </button>
+                    </div>
+
+                    {videoMode === 'url' ? (
+                       <div className="flex-1 flex flex-col justify-center">
+                         <div className="relative">
+                            <input
+                              type="text"
+                              value={videoUrl}
+                              onChange={(e) => setVideoUrl(e.target.value)}
+                              placeholder="Paste YouTube or Direct MP4 URL here..."
+                              className="w-full bg-gray-800/50 border border-gray-600 rounded-lg pl-10 pr-4 py-3 text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none placeholder-gray-500 transition-all"
+                            />
+                            <Youtube className="absolute left-3 top-3 text-red-500" size={20} />
+                         </div>
+                         <p className="text-xs text-gray-500 mt-2 text-center">Supports YouTube URLs or direct video links.</p>
+                       </div>
                     ) : (
-                      <div className="text-center text-gray-400 pointer-events-none">
-                        <UploadCloud className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                        <p>Click or drag file to upload</p>
-                        <p className="text-xs mt-1 opacity-50">PDF, DOCX, TXT supported</p>
+                      <div className="flex-1 border-2 border-dashed border-gray-600 rounded-lg flex flex-col items-center justify-center bg-gray-800/30 hover:bg-gray-800/50 transition-colors relative">
+                        <input 
+                          type="file" 
+                          accept="video/mp4,video/quicktime,video/mpeg"
+                          onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        {videoFile ? (
+                          <div className="text-center">
+                            <Video className="w-10 h-10 text-purple-400 mx-auto mb-2" />
+                            <p className="text-white font-medium">{videoFile.name}</p>
+                            <p className="text-sm text-gray-400">{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</p>
+                          </div>
+                        ) : (
+                          <div className="text-center text-gray-400 pointer-events-none">
+                            <UploadCloud className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                            <p>Upload Video File</p>
+                            <p className="text-xs mt-1 opacity-50">MP4, MOV supported (Max 2GB)</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -288,9 +396,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                   onClick={handleSubmit}
                   disabled={
                     loading || 
-                    (activeTab === 'text' && !textInput) || 
-                    (activeTab === 'file' && !file) ||
-                    (activeTab === 'json' && !jsonFile)
+                    (activeTab === 'story' && textMode === 'paste' && !textInput.trim()) || 
+                    (activeTab === 'story' && textMode === 'upload' && !file) ||
+                    (activeTab === 'json' && !jsonFile) ||
+                    (activeTab === 'video' && videoMode === 'url' && !videoUrl.trim()) ||
+                    (activeTab === 'video' && videoMode === 'upload' && !videoFile)
                   }
                   className="w-full mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-900/50"
                 >

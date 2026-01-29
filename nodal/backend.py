@@ -3,6 +3,9 @@ import json
 import io
 import re
 import logging
+import time
+import tempfile
+import shutil
 from collections import Counter
 from typing import List, Optional, Dict, Any
 
@@ -76,10 +79,6 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
 
 
 def extract_text_from_docx(file_bytes: bytes) -> str:
-    """
-    Extract docx text from paragraphs and tables.
-    (Your existing backend already does this.)
-    """
     try:
         doc = Document(io.BytesIO(file_bytes))
         parts = []
@@ -102,13 +101,6 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
 # Helper: JSON cleanup
 # -------------------------
 def _extract_json_text(raw: str) -> str:
-    """
-    Handle cases like:
-    ```json
-    {...}
-    ```
-    or extra chatter around JSON.
-    """
     if not raw:
         return ""
     s = raw.strip()
@@ -133,10 +125,6 @@ def _ensure_edge_ids(edges: list) -> None:
 
 
 def _clamp_weight(edges: list) -> None:
-    """
-    New schema uses edge.visual.weight (not top-level weight).
-    If missing or invalid -> default 0.5.
-    """
     for e in edges:
         if not isinstance(e, dict):
             continue
@@ -159,15 +147,6 @@ def _clamp_weight(edges: list) -> None:
 
 
 def _add_degree_and_size_to_graph(graph: dict) -> dict:
-    """
-    Add:
-      node.centrality = degree
-      node.visual.size = 15 + degree*5  (keep your backend's original sizing style)
-    Also:
-      - fixes total_characters
-      - drops edges referencing missing nodes
-      - clamps visual.weight
-    """
     nodes = graph.get("nodes", [])
     edges = graph.get("edges", [])
     detected_language = graph.get("detected_language", "English")
@@ -181,7 +160,6 @@ def _add_degree_and_size_to_graph(graph: dict) -> dict:
             n["id"] = str(n["id"])
             node_ids.append(n["id"])
 
-            # Backward-compat / Safety: if model returns plain label/description, copy into bilingual fields
             if "label_en" not in n and "label" in n:
                 n["label_en"] = n["label"]
                 n["label_original"] = n["label"]
@@ -213,7 +191,6 @@ def _add_degree_and_size_to_graph(graph: dict) -> dict:
 
             rel = e.get("relation", {})
             if isinstance(rel, dict):
-                # Safety for edges too
                 if "label_en" not in rel and "label" in rel:
                     rel["label_en"] = rel["label"]
                     rel["label_original"] = rel["label"]
@@ -247,19 +224,11 @@ def _add_degree_and_size_to_graph(graph: dict) -> dict:
     }
 
 
-# ===== NEW: timeline-aware processing
 def _is_timeline_schema(parsed: Any) -> bool:
     return isinstance(parsed, dict) and isinstance(parsed.get("timeline"), list)
 
 
 def _process_model_output(parsed: dict) -> dict:
-    """
-    If timeline schema:
-      - add degree+size to each phase.graph
-      - return the whole timeline object (with enriched graphs)
-    Else:
-      - add degree+size to single graph and return it
-    """
     if _is_timeline_schema(parsed):
         timeline = parsed.get("timeline", [])
         for i, phase in enumerate(timeline, start=1):
@@ -269,12 +238,10 @@ def _process_model_output(parsed: dict) -> dict:
             if isinstance(graph, dict):
                 phase["graph"] = _add_degree_and_size_to_graph(graph)
             else:
-                # keep structure stable; just skip
                 logger.warning(f"Phase {i} missing graph object; skipped centrality/size fill.")
 
         return {"timeline": timeline}
 
-    # single-graph schema
     return _add_degree_and_size_to_graph(parsed)
 
 
@@ -284,7 +251,7 @@ def _process_model_output(parsed: dict) -> dict:
 SYSTEM_PROMPT = """
 You are a graph data generator.
 
-Your task is to extract people and their direct relationships from the provided content and output a JSON object with a timeline of phases. Each phase contains one graph.
+Your task is to extract people and their direct relationships from the provided content (text or video) and output a JSON object with a timeline of phases. Each phase contains one graph.
 
 ### Output Constraints
 1. Output ONLY valid JSON. No explanations, no markdown, no code fences.
@@ -335,66 +302,38 @@ Your task is to extract people and their direct relationships from the provided 
 }
 
 ### Language Handling
-4. "detected_language": The primary language of the input text (e.g., "English", "Chinese", "French").
+4. "detected_language": The primary language of the input content.
 5. `_original` fields: content in the source language.
 6. `_en` fields: content translated to English.
-7. If the input is English, `_original` and `_en` fields must be identical.
-8. `node.id` MUST be a language-neutral, lowercase snake_case identifier (e.g., "sun_wukong", "dr_sheppard") and must be stable across phases.
+7. `node.id` MUST be a language-neutral, lowercase snake_case identifier and must be stable across phases.
 
 ### Phase Rules
-9. Divide the content into suitable logical phases, in chronological reading order.
-10. Each phase has its own graph. Do NOT merge graphs across phases.
-11. `phase_name` and `summary` MUST be bilingual (original + English).
+9. Divide the content into logical phases in chronological order.
+10. Each phase has its own graph.
+11. `phase_name` and `summary` MUST be bilingual.
 
 ### Node & Edge Definitions
 12. Nodes represent people only.
-13. Edges represent direct relationships only.
-14. Each node should appear in at least one edge unless the phase strongly implies isolation.
+13. Edges represent direct relationships.
 
 ### Identity Consistency
 15. If the same character appears in multiple phases, reuse the EXACT same node.id.
-16. Canonical labels: Choose one consistent display name for `label_original` and `label_en` per character ID across all phases.
-
-### Relationship Rules
-17. relationship.type_* MUST be normalized (e.g., "friend", "ally", "enemy").
-18. relationship.description_* MUST be >3 sentences, citing specific interactions.
 
 ### Visual Rules
 19. edge.visual fields are required: color and weight (0.0 - 1.0).
-20. Strict 1-to-1 color mapping for relationship types across the ENTIRE timeline.
-
-### Totals & Coverage
-21. For each phase.graph: total_characters MUST equal the number of nodes.
-22. Capture key interactions and active secondary characters.
+20. Strict 1-to-1 color mapping for relationship types.
 """.strip()
 
 USER_PROMPT_TEMPLATE = """
 Extract a timeline of character relationship graphs from the attached content.
+If the content is a video, analyze the visual and audio narrative.
 
 Return JSON ONLY.
-
 """.strip()
 
-# -------------------------
-# ===== NEW: stricter chat boundary prompt
-# -------------------------
 CHAT_SYSTEM_PROMPT = """
 You are the Nodal Graph Chat assistant.
-
-You ONLY answer questions about:
-- characters (nodes),
-- relationships (edges),
-- relationship changes across phases if a timeline is provided,
-- and plot implications that can be directly supported by the provided graph JSON.
-
-Hard boundaries:
-- If the user asks anything unrelated to character relationships / the graph (e.g., general trivia, writing advice, coding help, medical/legal, or story details not supported by the graph), you MUST refuse briefly and ask them to rephrase as a graph/relationship question.
-- You must not invent facts not present in the graph context.
-- If the graph context is missing or empty, say you do not have the generated graph data and ask the user to send/attach it (or re-run analysis) before you can answer.
-
-Answer style:
-- Be concise.
-- When possible, cite specific node labels and the exact relationship types from the context.
+You answer questions about characters, relationships, and plot based on the analyzed graph.
 """.strip()
 
 
@@ -411,36 +350,95 @@ class ChatRequest(BaseModel):
 async def analyze_content(
     file: UploadFile = File(None),
     text_content: str = Form(None),
+    video_url: str = Form(None),
 ):
     if not client:
-        raise HTTPException(status_code=500, detail="Gemini client not initialized. Check API_KEY/GEMINI_API_KEY.")
+        raise HTTPException(status_code=500, detail="Gemini client not initialized. Check API_KEY.")
+
+    temp_video_path = None
+    uploaded_video_file = None
 
     try:
-        final_text = ""
-
+        content_parts = []
+        
+        # 1. Handle File Upload (Document or Video)
         if file:
-            content = await file.read()
-            if file.content_type == "application/pdf":
-                final_text = extract_text_from_pdf(content)
-            elif "wordprocessingml" in file.content_type or (file.filename and file.filename.endswith(".docx")):
-                final_text = extract_text_from_docx(content)
+            content_type = file.content_type or ""
+            
+            # --- VIDEO FILE HANDLING (Direct Gemini Upload) ---
+            if content_type.startswith("video/") or file.filename.lower().endswith(".mp4") or file.filename.lower().endswith(".mov") or file.filename.lower().endswith(".mpeg"):
+                logger.info(f"Processing uploaded video file: {file.filename}")
+                
+                # Save to temp file because client.files.upload needs a path
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+                    shutil.copyfileobj(file.file, tmp)
+                    temp_video_path = tmp.name
+                
+                logger.info(f"Uploading {file.filename} to Gemini File API...")
+                uploaded_video_file = client.files.upload(path=temp_video_path)
+                
+                # Poll for processing completion
+                while uploaded_video_file.state.name == "PROCESSING":
+                    logger.info("Video is processing by Gemini...")
+                    time.sleep(2)
+                    uploaded_video_file = client.files.get(name=uploaded_video_file.name)
+                
+                if uploaded_video_file.state.name == "FAILED":
+                    raise HTTPException(status_code=400, detail="Video processing failed by Gemini.")
+                
+                logger.info("Video ready. Adding to request.")
+                # Add file_data part for the uploaded video
+                content_parts.append(types.Part(
+                    file_data=types.FileData(
+                        file_uri=uploaded_video_file.uri, 
+                        mime_type=uploaded_video_file.mime_type
+                    )
+                ))
+
+            # --- TEXT DOCUMENT HANDLING ---
             else:
-                final_text = content.decode("utf-8", errors="ignore")
+                file_bytes = await file.read()
+                text = ""
+                if content_type == "application/pdf":
+                    text = extract_text_from_pdf(file_bytes)
+                elif "wordprocessingml" in content_type or (file.filename and file.filename.endswith(".docx")):
+                    text = extract_text_from_docx(file_bytes)
+                else:
+                    text = file_bytes.decode("utf-8", errors="ignore")
+                
+                if text:
+                     content_parts.append(types.Part(text=text))
+
+        # 2. Handle Video URL (Direct Pass)
+        elif video_url:
+            logger.info(f"Using Video URL: {video_url}")
+            # Directly pass the URL to Gemini as requested by user
+            content_parts.append(types.Part(
+                file_data=types.FileData(file_uri=video_url)
+            ))
+
+        # 3. Handle Raw Text
         elif text_content:
-            final_text = text_content
+            content_parts.append(types.Part(text=text_content))
 
-        if not final_text or not final_text.strip():
-            raise HTTPException(status_code=400, detail="No content provided")
+        # Add prompts
+        final_contents = [
+            types.Content(
+                parts=[
+                    types.Part(text=SYSTEM_PROMPT),
+                    *content_parts,
+                    types.Part(text=USER_PROMPT_TEMPLATE)
+                ]
+            )
+        ]
 
-        # Provide "prompt + uploaded file" style input to Gemini (like your local test)
-        file_part = types.Part.from_bytes(
-            data=final_text.encode("utf-8", errors="ignore"),
-            mime_type="text/plain",
-        )
+        if not content_parts: # No content found
+             raise HTTPException(status_code=400, detail="No valid content provided for analysis.")
 
+        logger.info("Sending request to Gemini...")
         response = client.models.generate_content(
             model="gemini-3-flash-preview",
-            contents=[SYSTEM_PROMPT, USER_PROMPT_TEMPLATE, file_part],
+            contents=final_contents,
             config={"response_mime_type": "application/json"},
         )
 
@@ -448,33 +446,30 @@ async def analyze_content(
         json_text = _extract_json_text(raw)
         parsed = json.loads(json_text)
 
-        # Timeline-aware: fill degree/size per phase
         final_obj = _process_model_output(parsed)
-
         return final_obj
 
     except json.JSONDecodeError as je:
         logger.error(f"JSON Decode Error: {je}")
-        logger.error(f"Raw model output (first 2000 chars): {raw[:2000] if 'raw' in locals() else ''}")
-        raise HTTPException(status_code=500, detail=f"Invalid JSON response from AI: {str(je)}")
+        raise HTTPException(status_code=500, detail="Invalid JSON response from AI.")
     except Exception as e:
-        logger.error(f"Unexpected Error: {e}")
+        logger.error(f"Analysis Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Cleanup temp video file on disk
+        if temp_video_path and os.path.exists(temp_video_path):
+            try:
+                os.remove(temp_video_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete temp file: {e}")
 
-
-# -------------------------
-# API: chat
-# -------------------------
 @app.post("/api/chat")
 async def chat_with_context(request: ChatRequest):
     if not client:
-        raise HTTPException(status_code=500, detail="Gemini client not initialized. Check API_KEY/GEMINI_API_KEY.")
+        raise HTTPException(status_code=500, detail="Gemini client not initialized.")
 
     try:
-        # ===== IMPORTANT: This chatbot only knows what the frontend sends in request.context
-        # It does NOT automatically load phases_out/index.json or latest_analysis.json.
         graph_context = request.context or {}
-
         history_str = ""
         if request.history:
             for msg in request.history[-10:]:
@@ -482,7 +477,7 @@ async def chat_with_context(request: ChatRequest):
                 history_str += f"{role}: {msg.get('content')}\n"
 
         prompt = (
-            "CONTEXT (Graph JSON; may be single-graph or timeline):\n"
+            "CONTEXT (Graph JSON):\n"
             f"{json.dumps(graph_context, ensure_ascii=False)}\n\n"
             "CONVERSATION HISTORY:\n"
             f"{history_str}\n"
@@ -492,7 +487,10 @@ async def chat_with_context(request: ChatRequest):
 
         response = client.models.generate_content(
             model="gemini-3-flash-preview",
-            contents=[CHAT_SYSTEM_PROMPT, prompt],
+            contents=[types.Content(parts=[
+                types.Part(text=CHAT_SYSTEM_PROMPT), 
+                types.Part(text=prompt)
+            ])],
         )
 
         return {"response": response.text}
@@ -504,5 +502,4 @@ async def chat_with_context(request: ChatRequest):
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
