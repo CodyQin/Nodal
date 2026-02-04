@@ -16,7 +16,6 @@ from dotenv import load_dotenv
 
 from google import genai
 from google.genai import types
-from pypdf import PdfReader
 from docx import Document
 
 # -------------------------
@@ -65,19 +64,6 @@ else:
 # -------------------------
 # Helper: extract text
 # -------------------------
-def extract_text_from_pdf(file_bytes: bytes) -> str:
-    try:
-        reader = PdfReader(io.BytesIO(file_bytes))
-        text = ""
-        for page in reader.pages:
-            page_text = page.extract_text() or ""
-            text += page_text + "\n"
-        return text
-    except Exception as e:
-        logger.error(f"PDF Parse Error: {e}")
-        return ""
-
-
 def extract_text_from_docx(file_bytes: bytes) -> str:
     try:
         doc = Document(io.BytesIO(file_bytes))
@@ -364,9 +350,10 @@ async def analyze_content(
         # 1. Handle File Upload (Document or Video)
         if file:
             content_type = file.content_type or ""
+            filename = file.filename.lower() if file.filename else ""
             
             # --- VIDEO FILE HANDLING (Direct Gemini Upload) ---
-            if content_type.startswith("video/") or file.filename.lower().endswith(".mp4") or file.filename.lower().endswith(".mov") or file.filename.lower().endswith(".mpeg"):
+            if content_type.startswith("video/") or filename.endswith((".mp4", ".mov", ".mpeg")):
                 logger.info(f"Processing uploaded video file: {file.filename}")
                 
                 # Save to temp file because client.files.upload needs a path
@@ -394,14 +381,21 @@ async def analyze_content(
                         mime_type=uploaded_video_file.mime_type
                     )
                 ))
+            
+            # --- PDF HANDLING (Direct Gemini Input) ---
+            elif content_type == "application/pdf" or filename.endswith(".pdf"):
+                logger.info(f"Processing uploaded PDF file: {file.filename}")
+                file_bytes = await file.read()
+                content_parts.append(types.Part.from_bytes(
+                    data=file_bytes,
+                    mime_type="application/pdf"
+                ))
 
-            # --- TEXT DOCUMENT HANDLING ---
+            # --- TEXT/DOCX HANDLING ---
             else:
                 file_bytes = await file.read()
                 text = ""
-                if content_type == "application/pdf":
-                    text = extract_text_from_pdf(file_bytes)
-                elif "wordprocessingml" in content_type or (file.filename and file.filename.endswith(".docx")):
+                if "wordprocessingml" in content_type or filename.endswith(".docx"):
                     text = extract_text_from_docx(file_bytes)
                 else:
                     text = file_bytes.decode("utf-8", errors="ignore")

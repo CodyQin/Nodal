@@ -237,7 +237,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                   onClick={() => setActiveTab('story')}
                   className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'story' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                  <FileText size={18} /> Text
+                  <FileText size={18} /> Story Content
                 </button>
                 <button
                   onClick={() => setActiveTab('video')}

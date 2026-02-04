@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { GraphData, Node, Edge } from '../types';
-import { Info, X, RotateCcw } from 'lucide-react';
+import { Info, X, RotateCcw, MousePointer2 } from 'lucide-react';
 
 interface GraphViewProps {
   data: GraphData;
@@ -395,11 +395,11 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
         <RotateCcw className="group-hover:-rotate-180 transition-transform duration-500" />
       </button>
 
-      {/* Helper Tip */}
+      {/* Helper Tip - Moved to Top Right (Under Stats) to avoid Timeline overlap */}
       {!selectedElement && (
-        <div className="absolute bottom-8 left-8 z-50 glass px-4 py-2 rounded-full flex items-center gap-2 text-sm text-gray-300 pointer-events-none opacity-60 hover:opacity-100 transition-opacity border border-white/5 bg-black/20">
-          <Info size={16} />
-          <span>Hover to highlight, click to view details</span>
+        <div className="absolute top-24 right-6 z-40 glass px-4 py-2 rounded-full flex items-center gap-2 text-xs text-gray-400 pointer-events-none opacity-80 border border-white/5 bg-black/20 shadow-lg">
+          <MousePointer2 size={14} className="text-blue-400" />
+          <span>Hover nodes to highlight, click for details</span>
         </div>
       )}
     </div>
