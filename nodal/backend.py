@@ -547,15 +547,20 @@ async def chat_with_context(request: ChatRequest):
             f"{request.message}"
         )
 
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=[types.Content(parts=[
-                types.Part(text=CHAT_SYSTEM_PROMPT), 
-                types.Part(text=prompt)
-            ])],
-        )
+        def generate_chat_stream():
+            stream = client.models.generate_content_stream(
+                model="gemini-3-flash-preview",
+                contents=[types.Content(parts=[
+                    types.Part(text=CHAT_SYSTEM_PROMPT), 
+                    types.Part(text=prompt)
+                ])],
+            )
+            for chunk in stream:
+                if chunk.text:
+                    yield chunk.text
 
-        return {"response": response.text}
+        # Return plain text stream
+        return StreamingResponse(generate_chat_stream(), media_type="text/plain")
 
     except Exception as e:
         logger.error(f"Chat Error: {e}")

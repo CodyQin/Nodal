@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2, Sparkles, MessageSquare } from 'lucide-react';
-import { chatWithContext } from '../services/api';
+import { chatWithContextStream } from '../services/api';
 import { AnalysisResult, ChatMessage } from '../types';
 
 interface ChatPanelProps {
@@ -88,7 +88,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ analysisResult }) => {
       setInput('');
     }
     
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    // Add user message AND placeholder AI message immediately
+    setMessages(prev => [
+      ...prev, 
+      { role: 'user', content: userMsg },
+      { role: 'ai', content: '' }
+    ]);
     setIsLoading(true);
 
     // Helper to sanitize a single graph's nodes/edges to save tokens/noise
@@ -136,15 +141,39 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ analysisResult }) => {
       return {};
     };
 
+    const history = messages.map(m => ({ role: m.role, content: m.content }));
+    const cleanContext = prepareContext(analysisResult);
+
     try {
-      const history = messages.map(m => ({ role: m.role, content: m.content }));
-      const cleanContext = prepareContext(analysisResult);
-      
-      const response = await chatWithContext(userMsg, cleanContext, history);
-      setMessages(prev => [...prev, { role: 'ai', content: response }]);
+      await chatWithContextStream(userMsg, cleanContext, history, (chunk) => {
+        setMessages(prev => {
+          const newMessages = [...prev];
+          const lastMsg = newMessages[newMessages.length - 1];
+          // Ensure we are updating the last AI message
+          if (lastMsg && lastMsg.role === 'ai') {
+            newMessages[newMessages.length - 1] = {
+              ...lastMsg,
+              content: lastMsg.content + chunk
+            };
+          }
+          return newMessages;
+        });
+      });
     } catch (error) {
       console.error('Chat Error:', error);
-      setMessages(prev => [...prev, { role: 'ai', content: 'Sorry, I encountered an error processing the graph data for chat.' }]);
+      setMessages(prev => {
+        const newMessages = [...prev];
+        const lastMsg = newMessages[newMessages.length - 1];
+        if (lastMsg && lastMsg.role === 'ai') {
+          // If empty, replace; if partial, append error
+          if (!lastMsg.content) {
+             newMessages[newMessages.length - 1] = { ...lastMsg, content: 'Sorry, I encountered an error processing the graph data for chat.' };
+          } else {
+             newMessages[newMessages.length - 1] = { ...lastMsg, content: lastMsg.content + '\n\n[Connection Error]' };
+          }
+        }
+        return newMessages;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -175,24 +204,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ analysisResult }) => {
               {msg.role === 'user' ? (
                 <p className="text-sm">{msg.content}</p>
               ) : (
-                <FormattedMessage text={msg.content} />
+                <>
+                  {msg.content ? (
+                    <FormattedMessage text={msg.content} />
+                  ) : (
+                    /* Initial Loading State for empty AI message */
+                    <div className="flex gap-1 py-1">
+                      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
         ))}
 
-        {isLoading && (
-          <div className="flex justify-start">
-             <div className="bg-gray-800 rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-3 border border-gray-700">
-                <div className="flex gap-1">
-                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></div>
-                </div>
-                <span className="text-xs text-gray-400 font-medium">Assistant is thinking...</span>
-             </div>
-          </div>
-        )}
+        {/* Removed redundant standalone isLoading spinner, as the empty message bubble now shows loading dots */}
         
         {/* Large Preset Questions (Only show when chat is brand new/empty) */}
         {messages.length === 1 && !isLoading && (

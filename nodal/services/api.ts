@@ -86,11 +86,39 @@ export const analyzeContent = async (
   });
 };
 
-export const chatWithContext = async (message: string, context: GraphData | AnalysisResult, history: ChatMessage[]) => {
-  const response = await axios.post(`${API_BASE_URL}/chat`, {
-    message,
-    context,
-    history
+export const chatWithContextStream = async (
+  message: string, 
+  context: GraphData | AnalysisResult, 
+  history: ChatMessage[],
+  onChunk: (text: string) => void
+) => {
+  const response = await fetch(`${API_BASE_URL}/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message,
+      context,
+      history
+    }),
   });
-  return response.data.response;
+
+  if (!response.body) throw new Error("No response body");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    onChunk(chunk);
+  }
+};
+
+// Simple wrapper for legacy compatibility if needed, but streaming is preferred.
+export const chatWithContext = async (message: string, context: GraphData | AnalysisResult, history: ChatMessage[]) => {
+  let fullResponse = "";
+  await chatWithContextStream(message, context, history, (chunk) => fullResponse += chunk);
+  return fullResponse;
 };
