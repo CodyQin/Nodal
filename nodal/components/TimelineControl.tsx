@@ -42,11 +42,10 @@ const TimelineControl: React.FC<TimelineControlProps> = ({ phases, activePhaseId
                         <h3 className="text-sm font-bold text-white leading-tight">
                           {getText(phase, 'phase_name')}
                         </h3>
-                        {isSummaryExpanded && (
-                           <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mt-0.5">
-                             Summary
-                           </p>
-                        )}
+                        {/* Always show Summary label or hint that it is clickable */}
+                        <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mt-0.5">
+                             {isSummaryExpanded ? 'Summary' : 'Click to expand summary'}
+                        </p>
                       </div>
                    </div>
                    <button 
@@ -102,7 +101,7 @@ const TimelineControl: React.FC<TimelineControlProps> = ({ phases, activePhaseId
                  key={phase.phase_id}
                  onClick={() => {
                    onPhaseSelect(phase.phase_id);
-                   setIsSummaryExpanded(true); // Auto-expand when selecting a phase
+                   setIsSummaryExpanded(false); // Default to collapsed
                  }}
                  className={`group relative flex flex-col items-start px-4 py-2 rounded-xl transition-all min-w-[140px] max-w-[200px] border flex-shrink-0 ${
                    isActive 

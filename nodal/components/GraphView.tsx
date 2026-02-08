@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { GraphData, Node, Edge } from '../types';
-import { Info, X, RotateCcw, MousePointer2 } from 'lucide-react';
+import { Info, X, RotateCcw, MousePointer2, Activity } from 'lucide-react';
 
 interface GraphViewProps {
   data: GraphData;
@@ -41,6 +41,15 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
   const getLinkWidth = (weight: number, isHighlighted: boolean = false) => {
     const baseWidth = Math.sqrt((weight || 0.5) * 12) + 1.5; 
     return isHighlighted ? baseWidth * 1.8 : baseWidth;
+  };
+
+  // Helper to translate numeric weight to descriptive text
+  const getStrengthDescription = (weight: number) => {
+    if (weight < 0.2) return "Tenuous Connection";
+    if (weight < 0.4) return "Weak Bond";
+    if (weight < 0.6) return "Moderate Relationship";
+    if (weight < 0.8) return "Strong Bond";
+    return "Inseparable / Intense";
   };
 
   const processedData = useMemo(() => {
@@ -366,18 +375,41 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
             </>
           ) : (
             <>
-              <div className="flex items-center gap-2 mb-2 pr-6">
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor: selectedElement.data.visual.color}}></span>
+              {/* Header: Color dot + Title */}
+              <div className="flex items-center gap-2 mb-3 pr-6">
+                <span className="w-3 h-3 rounded-full flex-shrink-0 shadow-[0_0_8px]" style={{backgroundColor: selectedElement.data.visual.color, boxShadow: `0 0 8px ${selectedElement.data.visual.color}`}}></span>
                 <div>
                    <h2 className="text-md font-bold leading-tight">{getText(selectedElement.data.relation, 'label')}</h2>
                    <p className="text-[10px] text-gray-400 uppercase">{getText(selectedElement.data.relation, 'type')}</p>
                 </div>
               </div>
-               <div className="mb-2">
-                <div className="w-full bg-gray-700 rounded-full h-1 mt-1">
-                  <div className="bg-blue-500 h-1 rounded-full" style={{ width: `${selectedElement.data.visual.weight * 100}%` }}></div>
-                </div>
-              </div>
+
+               {/* REPLACED: Strength Meter instead of Progress Bar */}
+               <div className="mb-3 bg-white/5 p-2.5 rounded-lg border border-white/5">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-gray-400">
+                      <Activity size={12} />
+                      Connection Strength
+                    </span>
+                    <span className="text-xs font-bold text-blue-200">
+                      {getStrengthDescription(selectedElement.data.visual.weight)}
+                    </span>
+                  </div>
+                  {/* Discrete Bars Visual */}
+                  <div className="flex gap-1 h-1.5">
+                    {[0.2, 0.4, 0.6, 0.8, 1.0].map((threshold) => (
+                      <div 
+                        key={threshold}
+                        className={`flex-1 rounded-sm transition-all duration-300 ${
+                          (selectedElement.data.visual.weight || 0) >= (threshold - 0.15)
+                            ? 'bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.6)]' 
+                            : 'bg-gray-700/50'
+                        }`}
+                      />
+                    ))}
+                  </div>
+               </div>
+
               <div className="max-h-40 overflow-y-auto custom-scrollbar pr-1">
                 <p className="text-xs leading-relaxed text-gray-200">{getText(selectedElement.data.relation, 'description')}</p>
               </div>
