@@ -1,24 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { UploadCloud, FileText, ArrowRight, Github, Loader2, Sparkles, BrainCircuit, CheckCircle, Circle, XCircle, FileJson, Video, Youtube } from 'lucide-react';
-import { analyzeContent } from '../services/api';
+import React, { useState, useRef, useEffect } from 'react';
+import { UploadCloud, FileText, ArrowRight, Github, Loader2, Sparkles, BrainCircuit, XCircle, FileJson, Video, Youtube } from 'lucide-react';
+import { analyzeContentStream } from '../services/api';
 import { AnalysisResult } from '../types';
 import axios from 'axios';
 
 interface LandingPageProps {
   onAnalysisComplete: (data: AnalysisResult) => void;
 }
-
-const THINKING_STEPS = [
-  "Connecting to Gemini 3.0 Flash...",
-  "Ingesting story content...",
-  "Detecting language...",
-  "Analyzing timeline phases...",
-  "Extracting character entities...",
-  "Identifying social interactions...",
-  "Calculating emotional weight...",
-  "Building graph topology...",
-  "Finalizing visualization data..."
-];
 
 const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
   // Tabs: 'story' (Text/File), 'video' (URL/MP4), 'json' (Restore)
@@ -41,27 +29,20 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   
-  // Thinking state
-  const [thinkingIndex, setThinkingIndex] = useState(0);
+  // Real-time Gemini Thoughts
+  const [thoughts, setThoughts] = useState<string>('');
+  const thoughtsEndRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll thoughts
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (loading) {
-      setThinkingIndex(0);
-      
-      interval = setInterval(() => {
-        setThinkingIndex((prev) => {
-          // Stop incrementing if we reach the end, wait for actual API response
-          if (prev >= THINKING_STEPS.length - 1) return prev;
-          return prev + 1;
-        });
-      }, 1500); // Progress every 1.5 seconds
+    if (thoughtsEndRef.current) {
+      thoughtsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-    return () => clearInterval(interval);
-  }, [loading]);
+  }, [thoughts]);
 
   const handleSubmit = async () => {
     setError(null);
+    setThoughts('');
 
     // Handle JSON Load separately
     if (activeTab === 'json') {
@@ -121,18 +102,27 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
         if (videoMode === 'url') sendVideoUrl = videoUrl;
       }
 
-      const data = await analyzeContent(
-        sendFile, 
+      await analyzeContentStream(
+        sendFile,
         sendText,
         sendVideoUrl,
+        (type, data) => {
+          if (type === 'thought') {
+            setThoughts(prev => prev + data);
+          } else if (type === 'result') {
+            onAnalysisComplete(data);
+          } else if (type === 'error') {
+            setError(data.message || 'An error occurred');
+          }
+        },
         abortControllerRef.current.signal
       );
-      onAnalysisComplete(data);
+
     } catch (err: any) {
-      if (axios.isCancel(err)) {
+      if (err.name === 'AbortError') {
         console.log('Request canceled by user');
       } else {
-        setError(err.response?.data?.detail || "An unexpected error occurred. Please try again.");
+        setError(err.response?.data?.detail || err.message || "An unexpected error occurred. Please try again.");
       }
     } finally {
       if (!abortControllerRef.current?.signal.aborted) {
@@ -146,7 +136,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       setLoading(false);
-      setThinkingIndex(0);
+      setThoughts('');
     }
   };
 
@@ -173,7 +163,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
         <div className="w-full max-w-2xl glass rounded-2xl p-1 shadow-2xl border border-white/10 overflow-hidden animate-in slide-in-from-bottom-8 duration-700 delay-150 transition-all">
           
           {loading ? (
-            /* Loading View - "Thinking Process" */
+            /* Loading View - Dynamic Thinking Process */
             <div className="h-[500px] flex flex-col p-8 bg-nodal-dark/95 text-left relative overflow-hidden">
                {/* Background Pulse */}
                <div className="absolute top-0 right-0 p-8 opacity-10">
@@ -183,7 +173,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                <div className="flex items-center justify-between mb-6 relative z-10">
                  <h3 className="text-2xl font-bold text-white flex items-center gap-3">
                    <Loader2 className="animate-spin text-blue-500" />
-                   Analyzing Story Timeline...
+                   Gemini is Thinking...
                  </h3>
                  <button 
                    onClick={handleCancel}
@@ -193,39 +183,28 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                  </button>
                </div>
                
-               <div className="flex-1 space-y-3 overflow-y-auto pr-2 relative z-10 custom-scrollbar">
-                 {THINKING_STEPS.map((step, idx) => {
-                   const isActive = idx === thinkingIndex;
-                   const isCompleted = idx < thinkingIndex;
-                   const isPending = idx > thinkingIndex;
-                   
-                   return (
-                     <div 
-                       key={idx} 
-                       className={`flex items-center gap-3 transition-all duration-300 ${isPending ? 'opacity-30' : 'opacity-100'}`}
-                     >
-                        {isCompleted ? (
-                          <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
-                        ) : isActive ? (
-                          <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                             <div className="w-2 h-2 bg-blue-400 rounded-full animate-ping" />
-                          </div>
-                        ) : (
-                          <Circle className="w-5 h-5 text-gray-700 flex-shrink-0" />
-                        )}
-                        
-                        <span className={`text-sm ${isActive ? 'text-blue-200 font-medium scale-105 origin-left' : isCompleted ? 'text-gray-400' : 'text-gray-600'} transition-all duration-300`}>
-                          {step}
-                        </span>
-                     </div>
-                   );
-                 })}
+               {/* Thinking Stream Output */}
+               <div className="flex-1 bg-black/40 rounded-lg p-4 font-mono text-sm text-blue-200 overflow-y-auto custom-scrollbar border border-white/10 relative z-10 shadow-inner">
+                 {!thoughts ? (
+                   <div className="flex items-center gap-2 text-gray-500 italic">
+                     <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></span>
+                     Initializing thought process...
+                   </div>
+                 ) : (
+                    <div className="whitespace-pre-wrap leading-relaxed">
+                      {thoughts}
+                      <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse align-middle"></span>
+                    </div>
+                 )}
+                 <div ref={thoughtsEndRef} />
                </div>
 
-               <div className="mt-6 pt-4 border-t border-white/10 relative z-10">
-                  <p className="text-xs text-gray-500 text-center animate-pulse">
-                    This may take up to 60 seconds for detailed timeline analysis...
-                  </p>
+               <div className="mt-4 pt-4 border-t border-white/10 relative z-10 flex justify-between items-center text-xs text-gray-500">
+                  <span className="flex items-center gap-2">
+                    <Sparkles size={12} className="text-purple-400" />
+                    Powered by Gemini 3.0 Flash Thinking
+                  </span>
+                  <span className="animate-pulse">Analyzing relationships & timeline...</span>
                </div>
             </div>
           ) : (
@@ -357,30 +336,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                             <p className="text-xs mt-1 opacity-50">MP4, MOV supported (Max 2GB)</p>
                           </div>
                         )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === 'json' && (
-                  <div className="h-48 border-2 border-dashed border-gray-600 rounded-lg flex flex-col items-center justify-center bg-gray-800/30 hover:bg-gray-800/50 transition-colors relative">
-                    <input 
-                      type="file" 
-                      accept=".json"
-                      onChange={(e) => setJsonFile(e.target.files?.[0] || null)}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    {jsonFile ? (
-                      <div className="text-center">
-                        <FileJson className="w-10 h-10 text-green-400 mx-auto mb-2" />
-                        <p className="text-white font-medium">{jsonFile.name}</p>
-                        <p className="text-sm text-gray-400">{(jsonFile.size / 1024).toFixed(1)} KB</p>
-                      </div>
-                    ) : (
-                      <div className="text-center text-gray-400 pointer-events-none">
-                        <UploadCloud className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                        <p>Upload a Nodal Graph JSON file</p>
-                        <p className="text-xs mt-1 opacity-50">Restore a previous analysis</p>
                       </div>
                     )}
                   </div>

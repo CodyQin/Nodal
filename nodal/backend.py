@@ -7,9 +7,11 @@ import time
 import tempfile
 import shutil
 from collections import Counter
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Generator
+from PyPDF2 import PdfReader
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -237,7 +239,7 @@ def _process_model_output(parsed: dict) -> dict:
 SYSTEM_PROMPT = """
 You are a graph data generator.
 
-Your task is to extract people and their direct relationships from the provided content (text or video) and output a JSON object with a timeline of phases. Each phase contains one graph.
+Your task is to extract people and all the relationships from the provided content (text or video) and output a JSON object with a timeline of phases. Each phase contains one graph.
 
 ### Output Constraints
 1. Output ONLY valid JSON. No explanations, no markdown, no code fences.
@@ -300,7 +302,7 @@ Your task is to extract people and their direct relationships from the provided 
 
 ### Node & Edge Definitions
 12. Nodes represent people only.
-13. Edges represent direct relationships.
+13. Edges represent all the relationships.
 
 ### Identity Consistency
 15. If the same character appears in multiple phases, reuse the EXACT same node.id.
@@ -330,8 +332,64 @@ class ChatRequest(BaseModel):
 
 
 # -------------------------
-# API: analyze
+# Streaming Logic
 # -------------------------
+def generate_analysis_stream(contents: List[types.Content], model: str, config: Dict[str, Any]) -> Generator[str, None, None]:
+    """
+    Generates a stream of NDJSON events:
+    {"type": "thought", "text": "..."}
+    {"type": "result", "data": {...}}
+    """
+    
+    # Enable thinking config for Gemini 3
+    # Use types.ThinkingConfig as per latest SDK patterns
+    config["thinking_config"] = types.ThinkingConfig(include_thoughts=True)
+
+    try:
+        response_stream = client.models.generate_content_stream(
+            model=model,
+            contents=contents,
+            config=config
+        )
+
+        full_json_response = ""
+
+        for chunk in response_stream:
+            # chunk is a GenerateContentResponse
+            if not chunk.candidates:
+                continue
+            
+            # Iterate through parts to separate thoughts from model text
+            for part in chunk.candidates[0].content.parts:
+                if part.thought:
+                    # Stream thought chunk to client
+                    event = {"type": "thought", "text": part.text}
+                    yield json.dumps(event) + "\n"
+                elif part.text:
+                    # Accumulate JSON text for final parsing
+                    full_json_response += part.text
+
+        # After stream finishes, parse the accumulated JSON
+        try:
+            json_text = _extract_json_text(full_json_response)
+            parsed_json = json.loads(json_text)
+            final_data = _process_model_output(parsed_json)
+            
+            event = {"type": "result", "data": final_data}
+            yield json.dumps(event) + "\n"
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse final JSON: {e}")
+            logger.error(f"Raw output: {full_json_response[:1000]}...")
+            yield json.dumps({"type": "error", "message": "Failed to parse AI response into valid JSON."}) + "\n"
+        except Exception as e:
+            logger.error(f"Processing error: {e}")
+            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+
+    except Exception as e:
+        logger.error(f"Stream Error: {e}")
+        yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+
+
 @app.post("/api/analyze")
 async def analyze_content(
     file: UploadFile = File(None),
@@ -386,6 +444,21 @@ async def analyze_content(
             elif content_type == "application/pdf" or filename.endswith(".pdf"):
                 logger.info(f"Processing uploaded PDF file: {file.filename}")
                 file_bytes = await file.read()
+
+                # Local pre-check: reject PDFs exceeding the supported page limit (1000)
+                try:
+                    reader = PdfReader(io.BytesIO(file_bytes))
+                    page_count = len(reader.pages)
+                except Exception as e:
+                    logger.error(f"Failed to read PDF page count: {e}")
+                    page_count = None
+
+                if page_count is not None and page_count > 1000:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"The document contains {page_count} pages which exceeds the supported page limit of 1000."
+                    )
+
                 content_parts.append(types.Part.from_bytes(
                     data=file_bytes,
                     mime_type="application/pdf"
@@ -429,33 +502,28 @@ async def analyze_content(
         if not content_parts: # No content found
              raise HTTPException(status_code=400, detail="No valid content provided for analysis.")
 
-        logger.info("Sending request to Gemini...")
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=final_contents,
-            config={"response_mime_type": "application/json"},
+        logger.info("Starting Gemini Stream...")
+        
+        # Return StreamingResponse for real-time thought updates
+        return StreamingResponse(
+            generate_analysis_stream(
+                contents=final_contents,
+                model="gemini-3-flash-preview",
+                config={"response_mime_type": "application/json"}
+            ),
+            media_type="application/x-ndjson"
         )
 
-        raw = response.text or ""
-        json_text = _extract_json_text(raw)
-        parsed = json.loads(json_text)
-
-        final_obj = _process_model_output(parsed)
-        return final_obj
-
-    except json.JSONDecodeError as je:
-        logger.error(f"JSON Decode Error: {je}")
-        raise HTTPException(status_code=500, detail="Invalid JSON response from AI.")
     except Exception as e:
-        logger.error(f"Analysis Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        # Cleanup temp video file on disk
+        logger.error(f"Analysis Setup Error: {e}")
+        # Only cleanup here if we haven't started streaming. 
+        # If streaming started, we catch it inside the generator.
         if temp_video_path and os.path.exists(temp_video_path):
             try:
                 os.remove(temp_video_path)
-            except Exception as e:
-                logger.warning(f"Failed to delete temp file: {e}")
+            except Exception:
+                pass
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
 async def chat_with_context(request: ChatRequest):
