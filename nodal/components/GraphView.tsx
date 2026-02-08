@@ -6,9 +6,10 @@ import { Info, X, RotateCcw, MousePointer2, Activity } from 'lucide-react';
 interface GraphViewProps {
   data: GraphData;
   language: 'original' | 'en';
+  theme: 'dark' | 'light';
 }
 
-const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
+const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -23,6 +24,8 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
 
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const svgSelectionRef = useRef<d3.Selection<SVGSVGElement, unknown, null, undefined> | null>(null);
+
+  const isDark = theme === 'dark';
 
   const getText = (obj: any, field: string) => {
     const key = language === 'en' ? `${field}_en` : `${field}_original`;
@@ -43,13 +46,25 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
     return isHighlighted ? baseWidth * 1.8 : baseWidth;
   };
 
-  // Helper to translate numeric weight to descriptive text
   const getStrengthDescription = (weight: number) => {
     if (weight < 0.2) return "Tenuous Connection";
     if (weight < 0.4) return "Weak Bond";
     if (weight < 0.6) return "Moderate Relationship";
     if (weight < 0.8) return "Strong Bond";
     return "Inseparable / Intense";
+  };
+
+  // Helper to ensure edges are never pure black
+  const getSafeEdgeColor = (color: string | undefined) => {
+    const defaultColor = isDark ? "#94a3b8" : "#64748b"; // Slate-400 (dark mode) / Slate-500 (light mode)
+    if (!color) return defaultColor;
+    
+    // Normalize and check for black
+    const c = color.toLowerCase();
+    if (c === '#000000' || c === 'black' || c === '#000') {
+      return isDark ? "#475569" : "#334155"; // Dark gray instead of black
+    }
+    return color;
   };
 
   const processedData = useMemo(() => {
@@ -90,32 +105,30 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
     
     svgSelectionRef.current = svg;
 
-    // --- 1. 定义 SVG 渐变和滤镜 (关键步骤) ---
     const defs = svg.append("defs");
 
-    // 创建 "3D 泡泡" 渐变
-    const bubbleGradient = defs.append("radialGradient")
+    // --- Node Gradients (Theme Aware) ---
+    // Dark Mode: Sky-200 -> Blue-500 -> Blue-900
+    // Light Mode: White/Sky-50 -> Sky-300 -> Sky-600
+    const nodeGradient = defs.append("radialGradient")
       .attr("id", "nodeGradient")
-      .attr("cx", "30%") // 高光位置偏左上
+      .attr("cx", "30%") 
       .attr("cy", "30%")
-      .attr("r", "70%"); // 扩散半径
+      .attr("r", "70%");
 
-    // 高光部分 (亮青色)
-    bubbleGradient.append("stop")
+    nodeGradient.append("stop")
       .attr("offset", "0%")
-      .attr("stop-color", "#bae6fd") // tailwind sky-200
+      .attr("stop-color", isDark ? "#bae6fd" : "#f0f9ff") // sky-200 / sky-50
       .attr("stop-opacity", 1);
 
-    // 中间过渡 (标准蓝)
-    bubbleGradient.append("stop")
+    nodeGradient.append("stop")
       .attr("offset", "60%")
-      .attr("stop-color", "#3b82f6") // tailwind blue-500
+      .attr("stop-color", isDark ? "#3b82f6" : "#7dd3fc") // blue-500 / sky-300
       .attr("stop-opacity", 1);
 
-    // 边缘阴影 (深蓝)
-    bubbleGradient.append("stop")
+    nodeGradient.append("stop")
       .attr("offset", "100%")
-      .attr("stop-color", "#1e3a8a") // tailwind blue-900
+      .attr("stop-color", isDark ? "#1e3a8a" : "#0284c7") // blue-900 / sky-600
       .attr("stop-opacity", 1);
 
     const g = svg.append("g");
@@ -143,13 +156,13 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
     const initialTicks = 120;
     for (let i = 0; i < initialTicks; ++i) simulation.tick();
 
-    // --- 渲染连线 ---
+    // --- Render Links ---
     const link = g.append("g")
       .attr("class", "links")
       .selectAll("line")
       .data(links)
       .join("line")
-      .attr("stroke", (d: any) => d.visual?.color || "#94a3b8")
+      .attr("stroke", (d: any) => getSafeEdgeColor(d.visual?.color))
       .attr("stroke-opacity", 0.6) 
       .attr("stroke-width", (d: any) => getLinkWidth(d.visual?.weight))
       .attr("class", "transition-all duration-200") 
@@ -166,21 +179,21 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
           d3.select(this).attr("stroke-opacity", 0.6);
       });
 
-    // --- 渲染节点 (修改为泡泡外观) ---
+    // --- Render Nodes ---
     const node = g.append("g")
       .attr("class", "nodes")
       .selectAll("circle")
       .data(nodes)
       .join("circle")
       .attr("r", (d: any) => (d.visual?.size || 10) + (Math.sqrt(d.degree) * 2)) 
-      // [修改点] 使用 url(#nodeGradient) 引用上面定义的渐变
       .attr("fill", "url(#nodeGradient)") 
-      // [修改点] 边框颜色调亮一点，增强通透感
-      .attr("stroke", "#93c5fd") 
+      .attr("stroke", isDark ? "#93c5fd" : "#0ea5e9") // sky-300 / sky-500
       .attr("stroke-width", 1.5)
       .attr("stroke-opacity", 0.8)
-      // [修改点] 添加 CSS 阴影发光效果
-      .style("filter", "drop-shadow(0 0 4px rgba(59, 130, 246, 0.6))") 
+      .style("filter", isDark 
+         ? "drop-shadow(0 0 4px rgba(59, 130, 246, 0.6))" 
+         : "drop-shadow(0 1px 3px rgba(0, 0, 0, 0.2))"
+      ) 
       .style("cursor", "pointer")
       .call(d3.drag<any, any>()
         .on("start", dragstarted)
@@ -192,19 +205,22 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
         setSelectedElement({ type: 'node', data: d, x, y });
       });
 
-    // 渲染标签
+    // --- Render Labels ---
     const text = g.append("g")
       .selectAll("text")
       .data(nodes)
       .join("text")
       .text((d: any) => getText(d, 'label'))
       .attr("font-size", (d: any) => 10 + Math.sqrt(d.degree))
-      .attr("fill", "#e2e8f0")
+      .attr("fill", isDark ? "#e2e8f0" : "#0f172a") // slate-200 / slate-900
       .attr("dx", (d: any) => (d.visual?.size || 10) + 8)
       .attr("dy", 4)
       .style("pointer-events", "none")
-      // 文字增加黑色描边，防止在发光背景下看不清
-      .style("text-shadow", "0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,1)"); 
+      // Only use strong shadow in dark mode, light mode gets a white halo for contrast
+      .style("text-shadow", isDark 
+          ? "0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,1)"
+          : "0 1px 2px rgba(255,255,255,0.8), 0 0 3px rgba(255,255,255,1)"
+      ); 
       
     updatePositions(); 
     
@@ -246,20 +262,18 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
         .attr("y", (d: any) => d.y);
     }
 
-    // --- 关联高亮逻辑 ---
+    // --- Hover Highlight Logic ---
     node
       .on("mouseenter", function(event, d: any) {
         const connectedNodeIds = processedData.neighbors.get(d.id);
         
-        // 1. 节点变淡/高亮
         node.transition().duration(200)
           .style("opacity", (n: any) => 
             (n.id === d.id || connectedNodeIds?.has(n.id)) ? 1 : 0.1
           )
-          // [修改点] 悬停时，相关的节点发光更强（更亮）
           .style("filter", (n: any) => 
             (n.id === d.id || connectedNodeIds?.has(n.id)) 
-              ? "drop-shadow(0 0 10px rgba(96, 165, 250, 0.9))"  // 强光
+              ? (isDark ? "drop-shadow(0 0 10px rgba(96, 165, 250, 0.9))" : "drop-shadow(0 0 6px rgba(14, 165, 233, 0.6))")
               : "none"
           );
         
@@ -268,28 +282,29 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
             (n.id === d.id || connectedNodeIds?.has(n.id)) ? 1 : 0.1
           );
 
-        // 2. 线条样式处理
         link.transition().duration(200)
           .style("opacity", (l: any) => 
             (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.15 
           )
-          .attr("stroke", (l: any) => l.visual?.color || "#94a3b8") 
+          .attr("stroke", (l: any) => getSafeEdgeColor(l.visual?.color)) 
           .attr("stroke-width", (l: any) => {
              const isConnected = l.source.id === d.id || l.target.id === d.id;
              return getLinkWidth(l.visual?.weight, isConnected);
           });
       })
       .on("mouseleave", function() {
-        // 复原
         node.transition().duration(200)
           .style("opacity", 1)
-          .style("filter", "drop-shadow(0 0 4px rgba(59, 130, 246, 0.6))"); // 恢复默认微光
+          .style("filter", isDark 
+            ? "drop-shadow(0 0 4px rgba(59, 130, 246, 0.6))" 
+            : "drop-shadow(0 1px 3px rgba(0, 0, 0, 0.2))"
+          );
 
         text.transition().duration(200).style("opacity", 1);
         link.transition().duration(200)
           .style("opacity", 1)
           .attr("stroke-opacity", 0.6) 
-          .attr("stroke", (d: any) => d.visual?.color || "#94a3b8")
+          .attr("stroke", (d: any) => getSafeEdgeColor(d.visual?.color))
           .attr("stroke-width", (d: any) => getLinkWidth(d.visual?.weight, false));
       });
 
@@ -316,7 +331,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
       simulation.stop();
     };
 
-  }, [processedData, language, resetKey]); 
+  }, [processedData, language, resetKey, theme]); // Added theme dependency
 
   const simulationRef = useRef<d3.Simulation<any, undefined> | null>(null);
 
@@ -341,57 +356,66 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
     };
   };
 
+  // Popup Panel Theme Classes
+  const panelClasses = isDark 
+    ? "bg-black/60 border-white/10 text-white shadow-2xl backdrop-blur-md" 
+    : "bg-white/80 border-slate-200 text-slate-800 shadow-xl backdrop-blur-md";
+  
+  const panelTextSecondary = isDark ? "text-gray-400" : "text-slate-500";
+  const panelTextDesc = isDark ? "text-gray-200" : "text-slate-600";
+  const badgeBg = isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-700";
+
   return (
-    <div className="relative w-full h-full bg-nodal-dark overflow-hidden select-none" ref={containerRef}>
+    <div className={`relative w-full h-full overflow-hidden select-none transition-colors duration-500 ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`} ref={containerRef}>
       <svg ref={svgRef} className="w-full h-full block"></svg>
 
       {/* Info Panel */}
       {selectedElement && (
         <div 
-          className="absolute z-50 max-w-xs glass rounded-xl p-4 text-white shadow-2xl animate-in fade-in zoom-in-95 duration-200 backdrop-blur-md bg-black/60 border border-white/10"
+          className={`absolute z-50 max-w-xs rounded-xl p-4 animate-in fade-in zoom-in-95 duration-200 border ${panelClasses}`}
           style={getPanelPosition()}
         >
           <button 
             onClick={() => setSelectedElement(null)} 
-            className="absolute top-2 right-2 text-gray-400 hover:text-white"
+            className={`absolute top-2 right-2 hover:opacity-100 transition-opacity ${isDark ? 'text-gray-400 opacity-60' : 'text-slate-400 opacity-60'}`}
           >
             <X size={16} />
           </button>
           
           {selectedElement.type === 'node' ? (
             <>
-              <h2 className="text-xl font-bold text-blue-400 mb-1 pr-6">{getText(selectedElement.data, 'label')}</h2>
+              <h2 className={`text-xl font-bold mb-1 pr-6 ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>{getText(selectedElement.data, 'label')}</h2>
               <div className="mb-2 flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-gray-400">Degree</span>
-                <span className="text-xs font-mono bg-blue-500/20 text-blue-300 px-1.5 rounded">
+                <span className={`text-[10px] uppercase tracking-wider ${panelTextSecondary}`}>Degree</span>
+                <span className={`text-xs font-mono px-1.5 rounded ${badgeBg}`}>
                   {processedData.nodes.find(n => n.id === selectedElement.data.id)?.degree || 0}
                 </span>
-                <span className="text-[10px] uppercase tracking-wider text-gray-400 ml-2">Centrality</span>
-                <span className="text-xs font-mono text-gray-300">{selectedElement.data.centrality}</span>
+                <span className={`text-[10px] uppercase tracking-wider ml-2 ${panelTextSecondary}`}>Centrality</span>
+                <span className={`text-xs font-mono ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>{selectedElement.data.centrality}</span>
               </div>
               <div className="max-h-40 overflow-y-auto custom-scrollbar pr-1">
-                <p className="text-xs leading-relaxed text-gray-200">{getText(selectedElement.data, 'description')}</p>
+                <p className={`text-xs leading-relaxed ${panelTextDesc}`}>{getText(selectedElement.data, 'description')}</p>
               </div>
             </>
           ) : (
             <>
               {/* Header: Color dot + Title */}
               <div className="flex items-center gap-2 mb-3 pr-6">
-                <span className="w-3 h-3 rounded-full flex-shrink-0 shadow-[0_0_8px]" style={{backgroundColor: selectedElement.data.visual.color, boxShadow: `0 0 8px ${selectedElement.data.visual.color}`}}></span>
+                <span className="w-3 h-3 rounded-full flex-shrink-0 shadow-[0_0_8px]" style={{backgroundColor: getSafeEdgeColor(selectedElement.data.visual.color), boxShadow: `0 0 8px ${getSafeEdgeColor(selectedElement.data.visual.color)}`}}></span>
                 <div>
                    <h2 className="text-md font-bold leading-tight">{getText(selectedElement.data.relation, 'label')}</h2>
-                   <p className="text-[10px] text-gray-400 uppercase">{getText(selectedElement.data.relation, 'type')}</p>
+                   <p className={`text-[10px] uppercase ${panelTextSecondary}`}>{getText(selectedElement.data.relation, 'type')}</p>
                 </div>
               </div>
 
-               {/* REPLACED: Strength Meter instead of Progress Bar */}
-               <div className="mb-3 bg-white/5 p-2.5 rounded-lg border border-white/5">
+               {/* Strength Meter */}
+               <div className={`mb-3 p-2.5 rounded-lg border ${isDark ? 'bg-white/5 border-white/5' : 'bg-slate-100 border-slate-200'}`}>
                   <div className="flex justify-between items-center mb-1.5">
-                    <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-gray-400">
+                    <span className={`flex items-center gap-1.5 text-[10px] uppercase tracking-wider ${panelTextSecondary}`}>
                       <Activity size={12} />
                       Connection Strength
                     </span>
-                    <span className="text-xs font-bold text-blue-200">
+                    <span className={`text-xs font-bold ${isDark ? 'text-blue-200' : 'text-blue-700'}`}>
                       {getStrengthDescription(selectedElement.data.visual.weight)}
                     </span>
                   </div>
@@ -403,7 +427,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
                         className={`flex-1 rounded-sm transition-all duration-300 ${
                           (selectedElement.data.visual.weight || 0) >= (threshold - 0.15)
                             ? 'bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.6)]' 
-                            : 'bg-gray-700/50'
+                            : (isDark ? 'bg-gray-700/50' : 'bg-slate-300/50')
                         }`}
                       />
                     ))}
@@ -411,7 +435,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
                </div>
 
               <div className="max-h-40 overflow-y-auto custom-scrollbar pr-1">
-                <p className="text-xs leading-relaxed text-gray-200">{getText(selectedElement.data.relation, 'description')}</p>
+                <p className={`text-xs leading-relaxed ${panelTextDesc}`}>{getText(selectedElement.data.relation, 'description')}</p>
               </div>
             </>
           )}
@@ -421,15 +445,15 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language }) => {
       {/* Reset Layout Button */}
       <button 
         onClick={handleResetLayout}
-        className="absolute bottom-8 right-8 z-40 glass p-3 rounded-full text-white hover:bg-white/10 transition-all shadow-lg group border border-white/10"
+        className={`absolute bottom-8 right-8 z-40 p-3 rounded-full transition-all shadow-lg group border backdrop-blur-md ${isDark ? 'bg-black/30 border-white/10 text-white hover:bg-white/10' : 'bg-white/80 border-slate-200 text-slate-700 hover:bg-slate-100'}`}
         title="Reset & Refit Layout"
       >
         <RotateCcw className="group-hover:-rotate-180 transition-transform duration-500" />
       </button>
 
-      {/* Helper Tip - Moved to Top Right (Under Stats) to avoid Timeline overlap */}
+      {/* Helper Tip */}
       {!selectedElement && (
-        <div className="absolute top-24 right-6 z-40 glass px-4 py-2 rounded-full flex items-center gap-2 text-xs text-gray-400 pointer-events-none opacity-80 border border-white/5 bg-black/20 shadow-lg">
+        <div className={`absolute top-24 right-6 z-40 px-4 py-2 rounded-full flex items-center gap-2 text-xs pointer-events-none opacity-80 border shadow-lg backdrop-blur-md ${isDark ? 'border-white/5 bg-black/20 text-gray-400' : 'border-slate-200 bg-white/60 text-slate-500'}`}>
           <MousePointer2 size={14} className="text-blue-400" />
           <span>Hover nodes to highlight, click for details</span>
         </div>

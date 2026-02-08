@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, FileText, ArrowRight, Github, Loader2, Sparkles, BrainCircuit, XCircle, FileJson, Video, Youtube } from 'lucide-react';
+import { UploadCloud, FileText, ArrowRight, Github, Loader2, Sparkles, BrainCircuit, XCircle, FileJson, Video, Youtube, Sun, Moon } from 'lucide-react';
 import { analyzeContentStream } from '../services/api';
 import { AnalysisResult } from '../types';
 import axios from 'axios';
 
 interface LandingPageProps {
   onAnalysisComplete: (data: AnalysisResult) => void;
+  theme: 'dark' | 'light';
+  toggleTheme: () => void;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, toggleTheme }) => {
   // Tabs: 'story' (Text/File), 'video' (URL/MP4), 'json' (Restore)
   const [activeTab, setActiveTab] = useState<'story' | 'video' | 'json'>('story');
   
@@ -32,6 +34,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
   // Real-time Gemini Thoughts
   const [thoughts, setThoughts] = useState<string>('');
   const thoughtsEndRef = useRef<HTMLDivElement>(null);
+
+  const isDark = theme === 'dark';
 
   // Auto-scroll thoughts
   useEffect(() => {
@@ -140,10 +144,28 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
     }
   };
 
+  // Styles
+  const cardClass = isDark ? "bg-slate-800/60 border-white/10" : "bg-white/80 border-white/40";
+  const textClass = isDark ? "text-white" : "text-slate-900";
+  const subTextClass = isDark ? "text-blue-200" : "text-slate-600";
+  const tabActive = isDark ? "bg-white/10 text-white" : "bg-white text-blue-600 shadow-sm";
+  const tabInactive = isDark ? "text-gray-400 hover:text-white hover:bg-white/5" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/50";
+  const inputBg = isDark ? "bg-slate-900/50" : "bg-slate-50/50";
+  const fieldBg = isDark ? "bg-gray-800/50 border-gray-600 text-gray-200" : "bg-white border-slate-300 text-slate-800 shadow-sm";
+
   return (
-    <div className="min-h-screen bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')] bg-cover bg-center bg-no-repeat flex flex-col items-center justify-center relative">
+    <div className={`min-h-screen bg-cover bg-center bg-no-repeat flex flex-col items-center justify-center relative transition-colors duration-500`}
+         style={{ backgroundImage: isDark ? "url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')" : "url('https://images.unsplash.com/photo-1493246507139-91e8fad9978e?q=80&w=2070&auto=format&fit=crop')" }}>
+      
       {/* Overlay */}
-      <div className="absolute inset-0 bg-nodal-dark/90 backdrop-blur-sm"></div>
+      <div className={`absolute inset-0 backdrop-blur-sm transition-colors duration-1000 ${isDark ? 'bg-slate-900/90' : 'bg-slate-50/80'}`}></div>
+
+      {/* Theme Toggle Top Right */}
+      <div className="absolute top-6 right-6 z-20">
+         <button onClick={toggleTheme} className={`p-3 rounded-full backdrop-blur-md border shadow-lg transition-all ${isDark ? 'bg-white/10 border-white/10 text-white hover:bg-white/20' : 'bg-white/60 border-slate-200 text-slate-800 hover:bg-white'}`}>
+            {isDark ? <Sun size={20} /> : <Moon size={20} />}
+         </button>
+      </div>
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-4xl px-6 py-12 flex flex-col items-center text-center">
@@ -154,24 +176,24 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
              <div className="bg-blue-600 p-3 rounded-2xl shadow-lg shadow-blue-500/30">
                <Sparkles className="text-white w-8 h-8" />
              </div>
-             <h1 className="text-6xl font-black tracking-tight text-white">Nodal</h1>
+             <h1 className={`text-6xl font-black tracking-tight ${textClass}`}>Nodal</h1>
            </div>
-           <p className="text-xl text-blue-200 font-light">Unraveling the threads of your story with AI.</p>
+           <p className={`text-xl font-light ${subTextClass}`}>Unraveling the threads of your story with AI.</p>
         </div>
 
         {/* Main Card */}
-        <div className="w-full max-w-2xl glass rounded-2xl p-1 shadow-2xl border border-white/10 overflow-hidden animate-in slide-in-from-bottom-8 duration-700 delay-150 transition-all">
+        <div className={`w-full max-w-2xl backdrop-blur-md rounded-2xl p-1 shadow-2xl border overflow-hidden animate-in slide-in-from-bottom-8 duration-700 delay-150 transition-all ${cardClass}`}>
           
           {loading ? (
             /* Loading View - Dynamic Thinking Process */
-            <div className="h-[500px] flex flex-col p-8 bg-nodal-dark/95 text-left relative overflow-hidden">
+            <div className={`h-[500px] flex flex-col p-8 text-left relative overflow-hidden ${isDark ? 'bg-slate-900/95' : 'bg-white/95'}`}>
                {/* Background Pulse */}
                <div className="absolute top-0 right-0 p-8 opacity-10">
                   <BrainCircuit className="w-48 h-48 text-blue-500 animate-pulse" />
                </div>
 
                <div className="flex items-center justify-between mb-6 relative z-10">
-                 <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                 <h3 className={`text-2xl font-bold flex items-center gap-3 ${textClass}`}>
                    <Loader2 className="animate-spin text-blue-500" />
                    Gemini is Thinking...
                  </h3>
@@ -184,7 +206,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                </div>
                
                {/* Thinking Stream Output */}
-               <div className="flex-1 bg-black/40 rounded-lg p-4 font-mono text-sm text-blue-200 overflow-y-auto custom-scrollbar border border-white/10 relative z-10 shadow-inner">
+               <div className={`flex-1 rounded-lg p-4 font-mono text-sm overflow-y-auto custom-scrollbar border relative z-10 shadow-inner ${isDark ? 'bg-black/40 text-blue-200 border-white/10' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
                  {!thoughts ? (
                    <div className="flex items-center gap-2 text-gray-500 italic">
                      <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></span>
@@ -199,7 +221,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                  <div ref={thoughtsEndRef} />
                </div>
 
-               <div className="mt-4 pt-4 border-t border-white/10 relative z-10 flex justify-between items-center text-xs text-gray-500">
+               <div className="mt-4 pt-4 border-t border-gray-200/20 relative z-10 flex justify-between items-center text-xs text-gray-500">
                   <span className="flex items-center gap-2">
                     <Sparkles size={12} className="text-purple-400" />
                     Powered by Gemini 3.0 Flash Thinking
@@ -211,29 +233,29 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
             /* Input View */
             <>
               {/* Tabs */}
-              <div className="flex border-b border-white/10">
+              <div className="flex border-b border-gray-200/10">
                 <button
                   onClick={() => setActiveTab('story')}
-                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'story' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'story' ? tabActive : tabInactive}`}
                 >
                   <FileText size={18} /> Story Content
                 </button>
                 <button
                   onClick={() => setActiveTab('video')}
-                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'video' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'video' ? tabActive : tabInactive}`}
                 >
                   <Video size={18} /> Video
                 </button>
                 <button
                   onClick={() => setActiveTab('json')}
-                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'json' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'json' ? tabActive : tabInactive}`}
                 >
                   <FileJson size={18} /> Load JSON
                 </button>
               </div>
 
               {/* Input Area */}
-              <div className="p-6 bg-nodal-dark/50">
+              <div className={`p-6 ${inputBg}`}>
                 {activeTab === 'story' && (
                   <div className="h-48 flex flex-col gap-4">
                      <div className="flex justify-center gap-4 mb-2">
@@ -256,10 +278,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                           value={textInput}
                           onChange={(e) => setTextInput(e.target.value)}
                           placeholder="Paste your story text here (chapters, summaries, or full text)..."
-                          className="flex-1 bg-gray-800/50 border border-gray-600 rounded-lg p-4 text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none placeholder-gray-500 transition-all"
+                          className={`flex-1 rounded-lg p-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none placeholder-gray-500 transition-all ${fieldBg}`}
                         />
                      ) : (
-                        <div className="flex-1 border-2 border-dashed border-gray-600 rounded-lg flex flex-col items-center justify-center bg-gray-800/30 hover:bg-gray-800/50 transition-colors relative">
+                        <div className={`flex-1 border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-colors relative ${isDark ? 'border-gray-600 bg-gray-800/30 hover:bg-gray-800/50' : 'border-slate-300 bg-white hover:bg-slate-50'}`}>
                           <input 
                             type="file" 
                             accept=".txt,.pdf,.docx"
@@ -269,8 +291,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                           {file ? (
                             <div className="text-center">
                               <FileText className="w-10 h-10 text-blue-400 mx-auto mb-2" />
-                              <p className="text-white font-medium">{file.name}</p>
-                              <p className="text-sm text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
+                              <p className={textClass}>{file.name}</p>
+                              <p className="text-sm text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
                             </div>
                           ) : (
                             <div className="text-center text-gray-400 pointer-events-none">
@@ -309,14 +331,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                               value={videoUrl}
                               onChange={(e) => setVideoUrl(e.target.value)}
                               placeholder="Paste YouTube or Direct MP4 URL here..."
-                              className="w-full bg-gray-800/50 border border-gray-600 rounded-lg pl-10 pr-4 py-3 text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none placeholder-gray-500 transition-all"
+                              className={`w-full rounded-lg pl-10 pr-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none placeholder-gray-500 transition-all ${fieldBg}`}
                             />
                             <Youtube className="absolute left-3 top-3 text-red-500" size={20} />
                          </div>
                          <p className="text-xs text-gray-500 mt-2 text-center">Supports YouTube URLs or direct video links.</p>
                        </div>
                     ) : (
-                      <div className="flex-1 border-2 border-dashed border-gray-600 rounded-lg flex flex-col items-center justify-center bg-gray-800/30 hover:bg-gray-800/50 transition-colors relative">
+                      <div className={`flex-1 border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-colors relative ${isDark ? 'border-gray-600 bg-gray-800/30 hover:bg-gray-800/50' : 'border-slate-300 bg-white hover:bg-slate-50'}`}>
                         <input 
                           type="file" 
                           accept="video/mp4,video/quicktime,video/mpeg"
@@ -326,8 +348,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                         {videoFile ? (
                           <div className="text-center">
                             <Video className="w-10 h-10 text-purple-400 mx-auto mb-2" />
-                            <p className="text-white font-medium">{videoFile.name}</p>
-                            <p className="text-sm text-gray-400">{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</p>
+                            <p className={textClass}>{videoFile.name}</p>
+                            <p className="text-sm text-gray-500">{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</p>
                           </div>
                         ) : (
                           <div className="text-center text-gray-400 pointer-events-none">
@@ -339,6 +361,33 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
                       </div>
                     )}
                   </div>
+                )}
+                
+                {/* JSON Upload Block */}
+                {activeTab === 'json' && (
+                   <div className="h-48 flex flex-col">
+                     <div className={`flex-1 border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-colors relative ${isDark ? 'border-gray-600 bg-gray-800/30 hover:bg-gray-800/50' : 'border-slate-300 bg-white hover:bg-slate-50'}`}>
+                        <input 
+                          type="file" 
+                          accept=".json"
+                          onChange={(e) => setJsonFile(e.target.files?.[0] || null)}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        {jsonFile ? (
+                          <div className="text-center">
+                            <FileJson className="w-10 h-10 text-yellow-500 mx-auto mb-2" />
+                            <p className={textClass}>{jsonFile.name}</p>
+                            <p className="text-sm text-gray-500">{(jsonFile.size / 1024).toFixed(1)} KB</p>
+                          </div>
+                        ) : (
+                          <div className="text-center text-gray-400 pointer-events-none">
+                            <UploadCloud className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                            <p>Upload Analysis JSON</p>
+                            <p className="text-xs mt-1 opacity-50">.json files supported</p>
+                          </div>
+                        )}
+                     </div>
+                   </div>
                 )}
 
                 {error && (
@@ -371,12 +420,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete }) => {
         </div>
 
         {/* Footer */}
-        <div className={`mt-12 text-center text-gray-400 text-sm transition-all duration-500 ${loading ? 'opacity-0' : 'animate-in fade-in duration-1000 delay-300'}`}>
-          <p className="mb-2">Built for the <span className="text-blue-400 font-semibold">Gemini 3 Hackathon</span></p>
+        <div className={`mt-12 text-center text-sm transition-all duration-500 ${loading ? 'opacity-0' : 'animate-in fade-in duration-1000 delay-300'} ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+          <p className="mb-2">Built for the <span className="text-blue-500 font-semibold">Gemini 3 Hackathon</span></p>
           <p className="flex items-center justify-center gap-2">
-            By <span className="text-white font-medium">U Still Coding</span> (USC CS Students)
-            <span className="w-1 h-1 bg-gray-600 rounded-full"></span>
-            <a href="https://github.com/CodyQin/Nodal" target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-white transition-colors">
+            By <span className={textClass}>U Still Coding</span> (USC CS Students)
+            <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
+            <a href="https://github.com/CodyQin/Nodal" target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-blue-500 transition-colors">
               <Github size={14} /> GitHub
             </a>
           </p>

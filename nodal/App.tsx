@@ -4,12 +4,13 @@ import GraphView from './components/GraphView';
 import ChatPanel from './components/ChatPanel';
 import TimelineControl from './components/TimelineControl';
 import { AnalysisResult, GraphData, Phase, Node, Edge } from './types';
-import { ArrowLeft, Languages, Download } from 'lucide-react';
+import { ArrowLeft, Languages, Download, Sun, Moon } from 'lucide-react';
 
 const App: React.FC = () => {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [displayLanguage, setDisplayLanguage] = useState<'original' | 'en'>('original');
   const [activePhaseId, setActivePhaseId] = useState<string | 'overview'>('overview');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   // Compute the Overview Graph from all phases
   const overviewGraph = useMemo<GraphData | null>(() => {
@@ -115,19 +116,33 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
   if (!analysisResult || !currentGraph) {
-    return <LandingPage onAnalysisComplete={(data) => {
-      setAnalysisResult(data);
-      // Default to English if detected language IS English, otherwise original
-      setDisplayLanguage('original'); 
-    }} />;
+    return (
+      <LandingPage 
+        onAnalysisComplete={(data) => {
+          setAnalysisResult(data);
+          setDisplayLanguage('original'); 
+        }} 
+        theme={theme}
+        toggleTheme={toggleTheme}
+      />
+    );
   }
 
   const isBilingual = currentGraph.detected_language && currentGraph.detected_language.toLowerCase() !== 'english';
   const hasTimeline = !!analysisResult.timeline && analysisResult.timeline.length > 0;
+  
+  // Theme classes
+  const bgClass = theme === 'dark' ? 'bg-slate-900' : 'bg-slate-50';
+  const headerBgClass = theme === 'dark' ? 'bg-slate-800/80 border-white/10 text-white hover:bg-white/10' : 'bg-white/80 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-sm';
+  const statsBgClass = theme === 'dark' ? 'bg-slate-800/80 border-white/10 text-white' : 'bg-white/80 border-slate-200 text-slate-800 shadow-sm';
 
   return (
-    <div className="flex h-screen w-screen bg-nodal-dark overflow-hidden">
+    <div className={`flex h-screen w-screen ${bgClass} overflow-hidden transition-colors duration-500`}>
       {/* Main Graph Area */}
       <div className="flex-1 relative flex flex-col">
         {/* Navigation / Header overlay */}
@@ -138,7 +153,7 @@ const App: React.FC = () => {
                 setAnalysisResult(null);
                 setActivePhaseId('overview');
               }}
-              className="flex items-center gap-2 bg-nodal-card/80 backdrop-blur border border-white/10 text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-colors"
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg backdrop-blur border transition-all ${headerBgClass}`}
             >
               <ArrowLeft size={16} /> Back
             </button>
@@ -147,7 +162,7 @@ const App: React.FC = () => {
             {isBilingual && (
               <button
                 onClick={() => setDisplayLanguage(prev => prev === 'original' ? 'en' : 'original')}
-                className="flex items-center gap-2 bg-nodal-card/80 backdrop-blur border border-white/10 text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-colors"
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg backdrop-blur border transition-all ${headerBgClass}`}
               >
                 <Languages size={16} />
                 <span className="text-sm font-medium">
@@ -159,28 +174,36 @@ const App: React.FC = () => {
             {/* Download Button */}
             <button 
               onClick={handleDownloadJson}
-              className="flex items-center gap-2 bg-nodal-card/80 backdrop-blur border border-white/10 text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-colors"
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg backdrop-blur border transition-all ${headerBgClass}`}
               title="Download Analysis JSON"
             >
               <Download size={16} />
             </button>
+
+             {/* Theme Toggle */}
+             <button 
+              onClick={toggleTheme}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg backdrop-blur border transition-all ${headerBgClass}`}
+              title="Toggle Day/Night Mode"
+            >
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
           </div>
           
-          <div className="pointer-events-auto bg-nodal-card/80 backdrop-blur border border-white/10 px-6 py-2 rounded-full flex gap-6 text-sm">
+          <div className={`pointer-events-auto px-6 py-2 rounded-full flex gap-6 text-sm backdrop-blur border transition-all ${statsBgClass}`}>
              <div className="text-center">
-               <span className="block text-xl font-bold text-white">{currentGraph.total_characters}</span>
-               <span className="text-xs text-gray-400 uppercase tracking-wider">Nodes</span>
+               <span className={`block text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{currentGraph.total_characters}</span>
+               <span className={`text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>Nodes</span>
              </div>
              <div className="text-center">
-               <span className="block text-xl font-bold text-white">{currentGraph.edges.length}</span>
-               <span className="text-xs text-gray-400 uppercase tracking-wider">Edges</span>
+               <span className={`block text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{currentGraph.edges.length}</span>
+               <span className={`text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>Edges</span>
              </div>
           </div>
         </div>
 
         {/* Graph Component */}
-        {/* Key forces re-mount/reset when phase changes */}
-        <GraphView key={activePhaseId} data={currentGraph} language={displayLanguage} />
+        <GraphView key={activePhaseId} data={currentGraph} language={displayLanguage} theme={theme} />
 
         {/* Timeline Control */}
         {hasTimeline && (
@@ -189,13 +212,14 @@ const App: React.FC = () => {
             activePhaseId={activePhaseId} 
             onPhaseSelect={setActivePhaseId} 
             language={displayLanguage}
+            theme={theme}
           />
         )}
       </div>
 
       {/* Sidebar - Chat */}
-      <div className="w-[400px] h-full shadow-xl z-20">
-        <ChatPanel analysisResult={analysisResult} />
+      <div className="w-[400px] h-full shadow-xl z-20 relative">
+        <ChatPanel analysisResult={analysisResult} theme={theme} />
       </div>
     </div>
   );
