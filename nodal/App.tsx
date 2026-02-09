@@ -4,7 +4,7 @@ import GraphView from './components/GraphView';
 import ChatPanel from './components/ChatPanel';
 import TimelineControl from './components/TimelineControl';
 import { AnalysisResult, GraphData, Phase, Node, Edge } from './types';
-import { ArrowLeft, Languages, Download, Sun, Moon } from 'lucide-react';
+import { ArrowLeft, Languages, Download, Sun, Moon, Info } from 'lucide-react';
 
 // Helper to calculate Betweenness Centrality (Brandes Algorithm)
 // We calculate this on the frontend for the merged "Overview" graph
@@ -16,8 +16,12 @@ const calculateBetweenness = (nodes: Node[], edges: Edge[]) => {
     const s = typeof e.source === 'object' ? (e.source as any).id : e.source;
     const t = typeof e.target === 'object' ? (e.target as any).id : e.target;
     if (adjacency[s] && adjacency[t]) {
-      adjacency[s].push(t);
-      adjacency[t].push(s);
+      // Avoid self-loops for centrality calculation
+      if (s !== t) {
+        // Check duplicates to ensure simple graph for metrics
+        if (!adjacency[s].includes(t)) adjacency[s].push(t);
+        if (!adjacency[t].includes(s)) adjacency[t].push(s);
+      }
     }
   });
 
@@ -74,9 +78,18 @@ const calculateBetweenness = (nodes: Node[], edges: Edge[]) => {
   // Normalize (undirected graph)
   const N = nodes.length;
   if (N > 2) {
-    const scale = 2 / ((N - 1) * (N - 2));
+    // FIX: The algorithm sums over ordered pairs (s,t), effectively counting every undirected path twice.
+    // The max possible sum for ordered pairs is (N-1)(N-2).
+    // Previously we divided by ((N-1)(N-2))/2, which resulted in values up to 2.0.
+    // Correct normalization is 1 / ((N - 1) * (N - 2)).
+    const scale = 1 / ((N - 1) * (N - 2));
     Object.keys(betweenness).forEach(k => {
       betweenness[k] *= scale;
+    });
+  } else {
+    // For 1 or 2 nodes, betweenness is technically 0
+    Object.keys(betweenness).forEach(k => {
+      betweenness[k] = 0;
     });
   }
 
@@ -218,6 +231,9 @@ const App: React.FC = () => {
   const headerBgClass = theme === 'dark' ? 'bg-slate-800/80 border-white/10 text-white hover:bg-white/10' : 'bg-white/80 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-sm';
   const statsBgClass = theme === 'dark' ? 'bg-slate-800/80 border-white/10 text-white' : 'bg-white/80 border-slate-200 text-slate-800 shadow-sm';
 
+  // Gradient definitions for the legend (Blue -> Purple -> Red)
+  const heatmapGradient = "linear-gradient(to right, #3b82f6, #a855f7, #ef4444)";
+
   return (
     <div className={`flex h-screen w-screen ${bgClass} overflow-hidden transition-colors duration-500`}>
       {/* Main Graph Area */}
@@ -265,6 +281,20 @@ const App: React.FC = () => {
             >
               {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
+
+            {/* Always Visible Heatmap Legend */}
+            <div className={`flex flex-col justify-center px-4 py-2 rounded-lg backdrop-blur border transition-all gap-1 ${headerBgClass}`}>
+                <div className="flex justify-between items-center w-32">
+                   <span className="text-[9px] uppercase font-bold opacity-70">Low</span>
+                   <span className="text-[9px] uppercase font-bold opacity-70">Influence</span>
+                   <span className="text-[9px] uppercase font-bold opacity-70">High</span>
+                </div>
+                <div 
+                  className="w-32 h-2 rounded-full"
+                  style={{ background: heatmapGradient }}
+                ></div>
+            </div>
+
           </div>
           
           <div className={`pointer-events-auto px-6 py-2 rounded-full flex gap-6 text-sm backdrop-blur border transition-all ${statsBgClass}`}>

@@ -1,14 +1,58 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, FileText, ArrowRight, Github, Loader2, Sparkles, BrainCircuit, XCircle, FileJson, Video, Youtube, Sun, Moon } from 'lucide-react';
+import { UploadCloud, FileText, ArrowRight, Github, Loader2, Sparkles, BrainCircuit, XCircle, FileJson, Video, Youtube, Sun, Moon, PlayCircle, BookOpen } from 'lucide-react';
 import { analyzeContentStream } from '../services/api';
 import { AnalysisResult } from '../types';
-import axios from 'axios';
 
 interface LandingPageProps {
   onAnalysisComplete: (data: AnalysisResult) => void;
   theme: 'dark' | 'light';
   toggleTheme: () => void;
 }
+
+const VIDEO_EXAMPLES = [
+  {
+    title: "Cinderella (1950)",
+    lang: "English",
+    url: "https://www.youtube.com/watch?v=DgwZebuIiXc",
+    type: "video"
+  },
+  {
+    title: "Parasite Review",
+    lang: "Korean",
+    url: "https://www.youtube.com/watch?v=hMDyOxuXEiE",
+    type: "video"
+  },
+  {
+    title: "City of God",
+    lang: "Portuguese",
+    url: "https://www.youtube.com/watch?v=6rCIlRdqXB8",
+    type: "video"
+  }
+];
+
+const TEXT_EXAMPLES = [
+  {
+    title: "Alice in Wonderland",
+    lang: "English",
+    type: "text",
+    filename: "alice_in_wonderland.txt",
+    path: "/examples/Alice's Adventures in Wonderland.txt"
+  },
+  {
+    title: "Les Misérables",
+    lang: "French",
+    type: "text",
+    filename: "les_miserables.txt",
+    path: "/examples/Les Misérables.txt"
+  },
+  {
+    title: "Jane Eyre",
+    lang: "English",
+    type: "text",
+    filename: "jane_eyre.txt",
+    path: "/examples/Jane Eyre.txt"
+  }
+];
 
 const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, toggleTheme }) => {
   // Tabs: 'story' (Text/File), 'video' (URL/MP4), 'json' (Restore)
@@ -144,6 +188,37 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
     }
   };
 
+  const loadExample = async (example: any) => {
+    setError(null);
+    
+    if (example.type === 'video') {
+      setActiveTab('video');
+      setVideoMode('url');
+      setVideoUrl(example.url);
+    } else {
+      // Switch to Story tab and Upload mode
+      setActiveTab('story');
+      setTextMode('upload');
+      setFile(null); // Reset current file while loading
+
+      try {
+        // Fetch the file from the public folder
+        const response = await fetch(example.path);
+        if (!response.ok) {
+           throw new Error(`Failed to fetch ${example.filename}`);
+        }
+        
+        const blob = await response.blob();
+        const file = new File([blob], example.filename, { type: 'text/plain' });
+        
+        setFile(file);
+      } catch (err: any) {
+        console.error("Error loading example file:", err);
+        setError(`Failed to load example: ${err.message}`);
+      }
+    }
+  };
+
   // Styles
   const cardClass = isDark ? "bg-slate-800/60 border-white/10" : "bg-white/80 border-white/40";
   const textClass = isDark ? "text-white" : "text-slate-900";
@@ -152,6 +227,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
   const tabInactive = isDark ? "text-gray-400 hover:text-white hover:bg-white/5" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/50";
   const inputBg = isDark ? "bg-slate-900/50" : "bg-slate-50/50";
   const fieldBg = isDark ? "bg-gray-800/50 border-gray-600 text-gray-200" : "bg-white border-slate-300 text-slate-800 shadow-sm";
+  const exampleCardBg = isDark ? "bg-slate-800/80 border-gray-700 hover:bg-slate-700 hover:border-blue-500/50" : "bg-white border-slate-200 hover:bg-slate-50 hover:border-blue-300";
 
   return (
     <div className={`min-h-screen bg-cover bg-center bg-no-repeat flex flex-col items-center justify-center relative transition-colors duration-500`}
@@ -172,22 +248,42 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
         
         {/* Branding */}
         <div className={`mb-8 transition-all duration-700 ${loading ? 'opacity-0 h-0 overflow-hidden' : 'animate-in fade-in zoom-in'}`}>
-           <div className="flex items-center justify-center gap-3 mb-4">
-             <div className="bg-blue-600 p-3 rounded-2xl shadow-lg shadow-blue-500/30">
-               <Sparkles className="text-white w-8 h-8" />
-             </div>
-             <h1 className={`text-6xl font-black tracking-tight ${textClass}`}>Nodal</h1>
-           </div>
-           <p className={`text-xl font-light ${subTextClass}`}>Unraveling the threads of your story with AI.</p>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 mb-6">
+            <div className="relative group">
+              <div className="absolute -inset-2 bg-blue-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <svg className="w-24 h-24 md:w-28 md:h-28 drop-shadow-sm" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="blueGradient" x1="20" y1="100" x2="100" y2="20" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#1e40af" /> 
+                    <stop offset="1" stopColor="#3b82f6" /> 
+                  </linearGradient>
+                </defs>
+                <path d="M30 90 C 30 90, 60 60, 60 60 C 60 60, 90 30, 90 30" stroke="url(#blueGradient)" strokeWidth="8" strokeLinecap="round" className="opacity-80"/>
+                <path d="M30 30 L 30 90" stroke="url(#blueGradient)" strokeWidth="8" strokeLinecap="round"/>
+                <path d="M90 30 L 90 90" stroke="url(#blueGradient)" strokeWidth="8" strokeLinecap="round" className="opacity-50"/>
+                <circle cx="30" cy="30" r="10" className="fill-blue-600" />
+                <circle cx="30" cy="90" r="10" className="fill-blue-800" />
+                <circle cx="90" cy="30" r="10" className="fill-blue-500" />
+                <circle cx="90" cy="90" r="8" className="fill-blue-400/50" />
+                <circle cx="60" cy="60" r="16" className="fill-white dark:fill-gray-900 stroke-blue-600 stroke-[6px]" />
+                <circle cx="60" cy="60" r="5" className="fill-orange-500 animate-pulse" />
+              </svg>
+            </div>
+            <h1 className={`text-6xl md:text-7xl font-black tracking-tighter ${textClass}`}>
+              Nodal
+            </h1>
+          </div>
+          <p className={`text-xl md:text-2xl font-light max-w-2xl mx-auto leading-relaxed ${subTextClass}`}>
+            Unraveling the threads of your story with AI.
+          </p>
         </div>
 
         {/* Main Card */}
         <div className={`w-full max-w-2xl backdrop-blur-md rounded-2xl p-1 shadow-2xl border overflow-hidden animate-in slide-in-from-bottom-8 duration-700 delay-150 transition-all ${cardClass}`}>
           
           {loading ? (
-            /* Loading View - Dynamic Thinking Process */
-            <div className={`h-[500px] flex flex-col p-8 text-left relative overflow-hidden ${isDark ? 'bg-slate-900/95' : 'bg-white/95'}`}>
-               {/* Background Pulse */}
+            /* Loading View */
+            <div className={`h-[550px] flex flex-col p-8 text-left relative overflow-hidden ${isDark ? 'bg-slate-900/95' : 'bg-white/95'}`}>
                <div className="absolute top-0 right-0 p-8 opacity-10">
                   <BrainCircuit className="w-48 h-48 text-blue-500 animate-pulse" />
                </div>
@@ -205,7 +301,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                  </button>
                </div>
                
-               {/* Thinking Stream Output */}
                <div className={`flex-1 rounded-lg p-4 font-mono text-sm overflow-y-auto custom-scrollbar border relative z-10 shadow-inner ${isDark ? 'bg-black/40 text-blue-200 border-white/10' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
                  {!thoughts ? (
                    <div className="flex items-center gap-2 text-gray-500 italic">
@@ -414,6 +509,34 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                      <>Generate Graph Timeline <ArrowRight size={18} /></>
                    )}
                 </button>
+
+                {/* Example Examples Section */}
+                {(activeTab === 'story' || activeTab === 'video') && (
+                  <div className="mt-8 border-t border-gray-200/10 pt-6">
+                    <p className={`text-xs font-bold uppercase tracking-wider mb-4 flex items-center justify-center gap-2 ${subTextClass}`}>
+                      <Sparkles size={12} className="text-yellow-500" />
+                      Try an Example
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {(activeTab === 'story' ? TEXT_EXAMPLES : VIDEO_EXAMPLES).map((example, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => loadExample(example)}
+                          className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-200 group ${exampleCardBg}`}
+                        >
+                           {example.type === 'video' ? (
+                             <PlayCircle size={24} className="mb-2 text-red-500 group-hover:scale-110 transition-transform" />
+                           ) : (
+                             <BookOpen size={24} className="mb-2 text-blue-500 group-hover:scale-110 transition-transform" />
+                           )}
+                           <span className={`text-sm font-semibold truncate w-full ${textClass}`}>{example.title}</span>
+                           <span className="text-[10px] text-gray-500">{example.lang} • {example.type === 'video' ? 'Video' : 'Text'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               </div>
             </>
           )}

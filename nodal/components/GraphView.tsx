@@ -172,17 +172,14 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
     const initialTicks = 120;
     for (let i = 0; i < initialTicks; ++i) simulation.tick();
 
-    // --- Heatmap Color Scale (Log/Power adjustment) ---
-    // Using a power scale (sqrt or cubic root) to make smaller values more visible
-    // Dark: Slate -> Blue -> Hot Pink
-    // Light: Slate -> Blue -> Red
-    const colorInterpolator = isDark 
-      ? interpolateRgbBasis(["#334155", "#60a5fa", "#f43f5e"]) 
-      : interpolateRgbBasis(["#cbd5e1", "#3b82f6", "#e11d48"]);
+    // --- Heatmap Color Scale ---
+    // Blue (Low) -> Purple (Mid) -> Red (High)
+    // Used for both Light/Dark modes for consistent data interpretation
+    const colorInterpolator = interpolateRgbBasis(["#3b82f6", "#a855f7", "#ef4444"]);
 
     // Scale 0 -> maxCentrality maps to 0 -> 1, but with a power curve to boost low values
     const normScale = scalePow()
-      .exponent(0.4) // Makes differences in low values more apparent
+      .exponent(0.2) // Makes differences in low values more apparent
       .domain([0, processedData.maxCentrality || 1])
       .range([0, 1]);
 
@@ -392,7 +389,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
   const panelTextSecondary = isDark ? "text-gray-400" : "text-slate-500";
   const panelTextDesc = isDark ? "text-gray-200" : "text-slate-600";
   const badgeBg = isDark ? "bg-white/10 text-gray-200" : "bg-slate-100 text-slate-600";
-  const hotBadgeBg = isDark ? "bg-rose-500/30 text-rose-300" : "bg-rose-100 text-rose-700";
+  const hotBadgeBg = isDark ? "bg-purple-500/30 text-purple-200" : "bg-orange-100 text-orange-700";
 
   return (
     <div className={`relative w-full h-full overflow-hidden select-none transition-colors duration-500 ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`} ref={containerRef}>
@@ -434,11 +431,15 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
                      </div>
                      <div className="flex items-center gap-2 mb-1">
                         <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-slate-400'}`}>Low</span>
-                        <div className={`flex-1 h-2 rounded-full ${isDark ? 'bg-gradient-to-r from-[#334155] via-[#60a5fa] to-[#f43f5e]' : 'bg-gradient-to-r from-[#cbd5e1] via-[#3b82f6] to-[#e11d48]'}`}></div>
+                        {/* Dynamic Gradient Bar */}
+                        <div 
+                          className="flex-1 h-2 rounded-full" 
+                          style={{ background: 'linear-gradient(to right, #3b82f6, #a855f7, #ef4444)' }}
+                        ></div>
                         <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-slate-400'}`}>High</span>
                      </div>
                      <p className={`text-[10px] leading-tight mt-1 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
-                       Red nodes act as "bridges" connecting different groups.
+                       Bright/Hot nodes act as "bridges" connecting different groups.
                      </p>
                   </div>
 
@@ -474,7 +475,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
                         </p>
                      </div>
                      <div>
-                        <a href="https://en.wikipedia.org/wiki/Betweenness_centrality" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-bold text-rose-500 hover:underline">
+                        <a href="https://en.wikipedia.org/wiki/Betweenness_centrality" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-bold text-pink-500 hover:underline">
                            Betweenness Centrality <ExternalLink size={10} />
                         </a>
                         <p className={`text-[11px] leading-relaxed mt-0.5 ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>
