@@ -315,7 +315,7 @@ Your task is to extract the people and their direct relationships from the provi
 }
 
 ### Language Handling
-4. "detected_language": The primary language of the input content.
+4. "detected_language": The primary language of the input content. MUST be the full English name (e.g. "English", "French", "Chinese"), NOT a code like "en" or "zh".
 5. `_original` fields: content in the source language.
 6. `_en` fields: content translated to English.
 7. `node.id` MUST be a language-neutral, lowercase snake_case identifier and must be stable across phases.

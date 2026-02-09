@@ -223,7 +223,11 @@ const App: React.FC = () => {
     );
   }
 
-  const isBilingual = currentGraph.detected_language && currentGraph.detected_language.toLowerCase() !== 'english';
+  // Check against both 'english' and 'en'
+  const isBilingual = currentGraph.detected_language 
+    && currentGraph.detected_language.toLowerCase() !== 'english'
+    && currentGraph.detected_language.toLowerCase() !== 'en';
+
   const hasTimeline = !!analysisResult.timeline && analysisResult.timeline.length > 0;
   
   // Theme classes
