@@ -291,7 +291,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ analysisResult, theme = 'dark' })
               <Send size={18} />
             </button>
           </div>
-          <p className={`text-[10px] text-center mt-2 ${headerSubText}`}>Gemini 3 Flash Analysis</p>
+          <p className={`text-[10px] text-center mt-2 ${headerSubText}`}>Gemini 3 Pro Analysis</p>
         </div>
       </div>
     </div>
