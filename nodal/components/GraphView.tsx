@@ -577,7 +577,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
                         </span>
                      </div>
                      <div className={`text-[11px] mb-2 ${panelTextSecondary}`}>
-                        Nodes are colored by <strong>Betweenness Centrality</strong> (how vital they are as bridges).
+                        Nodes are colored by <a href="https://en.wikipedia.org/wiki/Betweenness_centrality" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 font-bold">Betweenness Centrality</a> (how vital they are as bridges).
                      </div>
                      
                      <div className="space-y-2">
@@ -608,7 +608,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
                            <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-slate-700'}`}>Size = Connections</span>
                         </div>
                         <p className={`text-[10px] leading-tight ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
-                           (Degree Centrality)
+                           (<a href="https://en.wikipedia.org/wiki/Degree_(graph_theory)" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500">Degree Centrality</a>)
                         </p>
                      </div>
                   </div>
