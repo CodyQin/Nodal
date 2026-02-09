@@ -9,6 +9,7 @@ import {
   forceCollide, 
   forceX, 
   forceY, 
+  forceRadial,
   interpolateRgbBasis, 
   interpolateRdYlGn,
   interpolateRdBu,
@@ -19,7 +20,7 @@ import {
   extent 
 } from 'd3';
 import { GraphData } from '../types';
-import { X, RotateCcw, MousePointer2, Activity, Zap, Info, ExternalLink, Move, MousePointerClick, Search, Download, Calendar, MessageSquare, Palette, Sliders, Bot, Languages, Sun, Moon } from 'lucide-react';
+import { X, RotateCcw, MousePointer2, Activity, Zap, Info, ExternalLink, Move, MousePointerClick, Search, Download, Calendar, MessageSquare, Palette, Sliders, Bot, Languages, Sun, Moon, GitGraph, Share2, CircleDot } from 'lucide-react';
 
 interface GraphViewProps {
   data: GraphData;
@@ -27,9 +28,10 @@ interface GraphViewProps {
   theme: 'dark' | 'light';
   colorScheme: string;
   colorExponent: number;
+  layoutStrategy: 'force' | 'hierarchical' | 'circular';
 }
 
-const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorScheme, colorExponent }) => {
+const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorScheme, colorExponent, layoutStrategy }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -126,6 +128,38 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
     const nodes = processedData.nodes.map(d => ({ ...d }));
     const links = processedData.links.map(d => ({ ...d }));
 
+    // Prepare Hierarchical Data if needed (BFS Levels)
+    if (layoutStrategy === 'hierarchical') {
+       const visited = new Set<string>();
+       const queue: { id: string; depth: number }[] = [];
+       
+       // Start BFS from the node with highest centrality (root approximation)
+       const sortedNodes = [...nodes].sort((a, b) => b.centrality - a.centrality);
+       
+       sortedNodes.forEach(rootCand => {
+         if (!visited.has(rootCand.id)) {
+           queue.push({ id: rootCand.id, depth: 0 });
+           visited.add(rootCand.id);
+           
+           while (queue.length > 0) {
+             const { id, depth } = queue.shift()!;
+             const node = nodes.find(n => n.id === id);
+             if (node) (node as any).depth = depth;
+             
+             const neighborIds = processedData.neighbors.get(id);
+             if (neighborIds) {
+               neighborIds.forEach(nid => {
+                 if (!visited.has(nid)) {
+                   visited.add(nid);
+                   queue.push({ id: nid, depth: depth + 1 });
+                 }
+               });
+             }
+           }
+         }
+       });
+    }
+
     const svg = select(svgRef.current)
       .attr("viewBox", [0, 0, width, height])
       .style("cursor", "grab");
@@ -163,12 +197,36 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
     svg.call(zoomBehavior);
     zoomRef.current = zoomBehavior;
 
-    const simulation = forceSimulation(nodes)
-      .force("link", forceLink(links).id((d: any) => d.id).distance(120))
-      .force("charge", forceManyBody().strength((d: any) => -300 - (d.degree * 20)))
-      .force("collide", forceCollide().radius((d: any) => (d.visual?.size || 20) + 15).iterations(2))
-      .force("x", forceX(width / 2).strength(0.08)) 
-      .force("y", forceY(height / 2).strength(0.12));
+    // --- Layout Strategy Implementation ---
+    const simulation = forceSimulation(nodes);
+
+    // Common forces to prevent overlap
+    simulation.force("charge", forceManyBody().strength((d: any) => -300 - (d.degree * 20)));
+    simulation.force("collide", forceCollide().radius((d: any) => (d.visual?.size || 20) + 15).iterations(2));
+
+    if (layoutStrategy === 'force') {
+       simulation
+         .force("link", forceLink(links).id((d: any) => d.id).distance(120))
+         .force("x", forceX(width / 2).strength(0.08)) 
+         .force("y", forceY(height / 2).strength(0.12));
+
+    } else if (layoutStrategy === 'hierarchical') {
+       // Pull nodes to Y-position based on BFS depth
+       simulation
+         .force("link", forceLink(links).id((d: any) => d.id).distance(80))
+         .force("x", forceX(width / 2).strength(0.3)) // Keep centered horizontally
+         .force("y", forceY((d: any) => {
+            const depth = (d.depth || 0);
+            return (height * 0.15) + (depth * 120); // Top-down flow
+         }).strength(2)); // Strong pull to layers
+
+    } else if (layoutStrategy === 'circular') {
+       const radius = Math.min(width, height) * 0.35;
+       simulation
+         // Link force is weak just to keep related nodes vaguely near, but ring is primary
+         .force("link", forceLink(links).id((d: any) => d.id).distance(50).strength(0.2)) 
+         .force("radial", forceRadial(radius, width / 2, height / 2).strength(0.8));
+    }
 
     simulationRef.current = simulation;
 
@@ -186,32 +244,11 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
     const getColor = (val: number) => {
       const t = normScale(val);
       switch(colorScheme) {
-        case 'RdYlGn_r':
-          // D3 RdYlGn: 0=Red, 1=Green. We want 0=Green(Low), 1=Red(High).
-          // So we use 1-t to map High(1) -> Red(0).
-          // Wait, actually d3.interpolateRdYlGn(0) is Red, (1) is Green.
-          // The prompt requested RdYlGn_r. Typically this means "reversed".
-          // In standard heatmaps: High = Hot (Red).
-          // So High Centrality (1.0) should be Red (0.0 in D3).
-          return interpolateRdYlGn(1 - t); 
-        case 'RdBu_r':
-          // D3 RdBu: 0=Red, 1=Blue.
-          // We want Low(0) = Blue, High(1) = Red.
-          // interpolateRdBu(0) is Red. interpolateRdBu(1) is Blue.
-          // At 0 we want Blue (so use 1). At 1 we want Red (so use 0).
-          // So use (1-t).
-          return interpolateRdBu(1 - t);
-        case 'Viridis_r':
-           // D3 Viridis: 0=Purple, 1=Yellow.
-           // _r usually means Reverse.
-           // Let's match typical "Dark is Low, Bright is High" or prompt.
-           // Prompt asked for Viridis_r. 
-           // Standard: t. Reversed: 1-t.
-           return interpolateViridis(1 - t);
+        case 'RdYlGn_r': return interpolateRdYlGn(1 - t); 
+        case 'RdBu_r': return interpolateRdBu(1 - t);
+        case 'Viridis_r': return interpolateViridis(1 - t);
         case 'Classic':
-        default:
-          // Blue -> Purple -> Red
-          return interpolateRgbBasis(["#3b82f6", "#a855f7", "#ef4444"])(t);
+        default: return interpolateRgbBasis(["#3b82f6", "#a855f7", "#ef4444"])(t);
       }
     };
 
@@ -233,7 +270,6 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
       });
 
     // --- Render Nodes (Bubble Style) ---
-    // Instead of appending 'circle' directly, we append 'g' to hold layers
     const nodeGroup = g.append("g")
       .attr("class", "nodes")
       .selectAll("g")
@@ -259,7 +295,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
     nodeGroup.append("circle")
       .attr("r", (d: any) => (d.visual?.size || 10) + (Math.sqrt(d.degree) * 2))
       .attr("fill", "url(#bubble-shine)")
-      .style("pointer-events", "none"); // Allow clicks to pass through to the base
+      .style("pointer-events", "none"); 
 
     // Interaction Events (Attached to the group)
     nodeGroup
@@ -310,7 +346,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
       .join("text")
       .text((d: any) => getText(d, 'label'))
       .attr("font-size", (d: any) => 10 + Math.sqrt(d.degree))
-      .attr("fill", isDark ? "#e2e8f0" : "#0f172a") // slate-200 / slate-900
+      .attr("fill", isDark ? "#e2e8f0" : "#0f172a") 
       .attr("dx", (d: any) => (d.visual?.size || 10) + 8)
       .attr("dy", 4)
       .style("pointer-events", "none")
@@ -319,7 +355,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
           : "0 1px 2px rgba(255,255,255,0.8), 0 0 3px rgba(255,255,255,1)"
       ); 
 
-    // --- Link Hover Logic (Defined after nodeGroup/text are created) ---
+    // --- Link Hover Logic ---
     link
       .on("mouseenter", function(event, d: any) {
          const sId = d.source.id;
@@ -376,7 +412,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
       svg.transition().duration(1000).call(zoomBehavior.transform, transform);
     }
 
-    simulation.alpha(0.1).restart();
+    simulation.alpha(0.3).restart();
     simulation.on("tick", updatePositions);
 
     function updatePositions() {
@@ -386,7 +422,6 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
         .attr("x2", (d: any) => d.target.x)
         .attr("y2", (d: any) => d.target.y);
       
-      // Update Groups (containing circle + shine) via Transform
       nodeGroup.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
       
       text
@@ -417,7 +452,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
       simulation.stop();
     };
 
-  }, [processedData, language, resetKey, theme, colorScheme, colorExponent]);
+  }, [processedData, language, resetKey, theme, colorScheme, colorExponent, layoutStrategy]);
 
   const handleResetLayout = () => {
     setSelectedElement(null);
@@ -498,24 +533,33 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
                   </div>
                </div>
 
-                {/* Section 2: Tools & Interface */}
-                <div className="space-y-3">
-                  <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Tools & Controls</h4>
-                  <div className={`grid grid-cols-2 gap-2 text-[11px] ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>
-                     <div className="flex items-center gap-2">
-                        <Languages size={14} className="text-blue-500" /> 
-                        <span>Translation Toggle</span>
-                     </div>
-                     <div className="flex items-center gap-2">
-                         <div className="flex gap-1">
-                             <Sun size={12} className="text-blue-500"/>
-                             <Moon size={12} className="text-blue-500"/>
+               {/* Section 1.5: Layout Strategies (New) */}
+               <div className="space-y-3">
+                  <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Layout Strategies</h4>
+                  <div className={`flex flex-col gap-2 text-xs ${panelTextSecondary}`}>
+                     <div className={`p-2 rounded border flex flex-col gap-1 ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                         <div className="flex items-center gap-2 font-semibold text-blue-500">
+                             <Share2 size={12} /> Force-Directed
                          </div>
-                        <span>Theme Switch</span>
+                         <p className="text-[10px] leading-normal">
+                             Simulates physical forces (gravity, repulsion). Good for general clusters and organic connections. <a href="https://en.wikipedia.org/wiki/Force-directed_graph_drawing" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400">Learn more</a>.
+                         </p>
                      </div>
-                     <div className="flex items-center gap-2 col-span-2">
-                        <RotateCcw size={14} className="text-blue-500" /> 
-                        <span>Reset Layout Position</span>
+                     <div className={`p-2 rounded border flex flex-col gap-1 ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                         <div className="flex items-center gap-2 font-semibold text-blue-500">
+                             <GitGraph size={12} /> Hierarchical
+                         </div>
+                         <p className="text-[10px] leading-normal">
+                             Arranges nodes in layers to show flow or influence. Central characters appear at the top. <a href="https://en.wikipedia.org/wiki/Layered_graph_drawing" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400">Learn more</a>.
+                         </p>
+                     </div>
+                     <div className={`p-2 rounded border flex flex-col gap-1 ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                         <div className="flex items-center gap-2 font-semibold text-blue-500">
+                             <CircleDot size={12} /> Circular
+                         </div>
+                         <p className="text-[10px] leading-normal">
+                             Places nodes on a ring. Useful for highlighting network density and distinct communities. <a href="https://en.wikipedia.org/wiki/Circular_layout" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400">Learn more</a>.
+                         </p>
                      </div>
                   </div>
                </div>

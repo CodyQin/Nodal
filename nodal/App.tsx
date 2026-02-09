@@ -4,7 +4,7 @@ import GraphView from './components/GraphView';
 import ChatPanel from './components/ChatPanel';
 import TimelineControl from './components/TimelineControl';
 import { AnalysisResult, GraphData, Phase, Node, Edge } from './types';
-import { ArrowLeft, Languages, Download, Sun, Moon, Info, Settings2 } from 'lucide-react';
+import { ArrowLeft, Languages, Download, Sun, Moon, Info, Settings2, Layout, GitGraph, CircleDot, Share2 } from 'lucide-react';
 
 // Helper to calculate Betweenness Centrality (Brandes Algorithm)
 // We calculate this on the frontend for the merged "Overview" graph
@@ -113,6 +113,7 @@ const App: React.FC = () => {
   // Visualization Settings
   const [colorSchemeIdx, setColorSchemeIdx] = useState(0); // Default to RdYlGn_r (index 0)
   const [colorExponent, setColorExponent] = useState(0.5);
+  const [layoutStrategy, setLayoutStrategy] = useState<'force' | 'hierarchical' | 'circular'>('force');
 
   const activeColorScheme = COLOR_SCHEMES[colorSchemeIdx];
 
@@ -228,6 +229,28 @@ const App: React.FC = () => {
     setColorSchemeIdx((prev) => (prev + 1) % COLOR_SCHEMES.length);
   };
 
+  const cycleLayout = () => {
+    const layouts: ('force' | 'hierarchical' | 'circular')[] = ['force', 'hierarchical', 'circular'];
+    const nextIdx = (layouts.indexOf(layoutStrategy) + 1) % layouts.length;
+    setLayoutStrategy(layouts[nextIdx]);
+  };
+
+  const getLayoutIcon = () => {
+    switch (layoutStrategy) {
+      case 'hierarchical': return <GitGraph size={16} />;
+      case 'circular': return <CircleDot size={16} />;
+      case 'force': default: return <Share2 size={16} />;
+    }
+  };
+
+  const getLayoutName = () => {
+    switch (layoutStrategy) {
+      case 'hierarchical': return 'Hierarchical';
+      case 'circular': return 'Circular';
+      case 'force': default: return 'Force';
+    }
+  };
+
   if (!analysisResult || !currentGraph) {
     return (
       <LandingPage 
@@ -301,6 +324,16 @@ const App: React.FC = () => {
               {theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
 
+            {/* Layout Toggle */}
+            <button
+              onClick={cycleLayout}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg backdrop-blur border transition-all ${headerBgClass}`}
+              title={`Change Layout Strategy (Current: ${getLayoutName()})`}
+            >
+              {getLayoutIcon()}
+              <span className="text-sm font-medium hidden lg:inline">{getLayoutName()}</span>
+            </button>
+
             {/* Interactive Heatmap Legend & Control */}
             <div className={`flex flex-col justify-center px-4 py-2 rounded-lg backdrop-blur border transition-all gap-2 group ${headerBgClass}`}>
                 
@@ -360,6 +393,7 @@ const App: React.FC = () => {
           theme={theme}
           colorScheme={activeColorScheme.id}
           colorExponent={colorExponent}
+          layoutStrategy={layoutStrategy}
         />
 
         {/* Timeline Control */}

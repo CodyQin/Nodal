@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, FileText, ArrowRight, Github, Loader2, Sparkles, BrainCircuit, XCircle, FileJson, Video, Youtube, Sun, Moon, PlayCircle, BookOpen } from 'lucide-react';
+import { UploadCloud, FileText, ArrowRight, Github, Loader2, Sparkles, BrainCircuit, XCircle, FileJson, Video, Youtube, Sun, Moon, PlayCircle, BookOpen, Users, Info, Linkedin, X, ChevronRight } from 'lucide-react';
 import { analyzeContentStream } from '../services/api';
 import { AnalysisResult } from '../types';
 
@@ -36,21 +36,48 @@ const TEXT_EXAMPLES = [
     lang: "English",
     type: "text",
     filename: "alice_in_wonderland.txt",
-    path: "/examples/Alice's Adventures in Wonderland.txt"
+    path: "/examples/alice.txt"
   },
   {
     title: "Les Misérables",
     lang: "French",
     type: "text",
     filename: "les_miserables.txt",
-    path: "/examples/Les Misérables.txt"
+    path: "/examples/les_miserables.txt"
   },
   {
     title: "Jane Eyre",
     lang: "English",
     type: "text",
     filename: "jane_eyre.txt",
-    path: "/examples/Jane Eyre.txt"
+    path: "/examples/jane_eyre.txt"
+  }
+];
+
+const TEAM_MEMBERS = [
+  {
+    name: "Chenshuhao (Cody) Qin",
+    role: "Full Stack / System Architecture",
+    github: "https://github.com/CodyQin",
+    linkedin: "https://www.linkedin.com/in/chenshuhao-qin/"
+  },
+  {
+    name: "Xinran Wu",
+    role: "Backend & Server Deployment",
+    github: "https://github.com/xinranwu666",
+    linkedin: "https://www.linkedin.com/in/usc-xinran-wu/"
+  },
+  {
+    name: "Yixin Xu",
+    role: "Frontend & Quality Assessment",
+    github: "https://github.com/iceu77",
+    linkedin: "http://linkedin.com/in/yixinx2004"
+  },
+  {
+    name: "Beining Qian",
+    role: "Frontend & Quality Assessment",
+    github: "https://github.com/qianbeining",
+    linkedin: "http://linkedin.com/in/beining-qian-69501639b"
   }
 ];
 
@@ -75,6 +102,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   
+  // Info Modal State
+  const [showInfo, setShowInfo] = useState(false);
+
   // Real-time Gemini Thoughts
   const [thoughts, setThoughts] = useState<string>('');
   const thoughtsEndRef = useRef<HTMLDivElement>(null);
@@ -236,19 +266,23 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
       {/* Overlay */}
       <div className={`absolute inset-0 backdrop-blur-sm transition-colors duration-1000 ${isDark ? 'bg-slate-900/90' : 'bg-slate-50/80'}`}></div>
 
-      {/* Theme Toggle Top Right */}
-      <div className="absolute top-6 right-6 z-20">
-         <button onClick={toggleTheme} className={`p-3 rounded-full backdrop-blur-md border shadow-lg transition-all ${isDark ? 'bg-white/10 border-white/10 text-white hover:bg-white/20' : 'bg-white/60 border-slate-200 text-slate-800 hover:bg-white'}`}>
+      {/* Top Right Controls - ONLY THEME NOW */}
+      <div className="absolute top-6 right-6 z-20 flex items-center gap-3">
+         <button 
+            onClick={toggleTheme} 
+            className={`p-3 rounded-full backdrop-blur-md border shadow-lg transition-all ${isDark ? 'bg-white/10 border-white/10 text-white hover:bg-white/20' : 'bg-white/60 border-slate-200 text-slate-800 hover:bg-white'}`}
+            title="Toggle Theme"
+         >
             {isDark ? <Moon size={20} /> : <Sun size={20} />}
          </button>
       </div>
 
       {/* Content */}
-      <div className="relative z-10 w-full max-w-4xl px-6 py-12 flex flex-col items-center text-center">
+      <div className="relative z-10 w-full max-w-5xl px-6 py-12 flex flex-col items-center text-center">
         
         {/* Branding */}
-        <div className={`mb-8 transition-all duration-700 ${loading ? 'opacity-0 h-0 overflow-hidden' : 'animate-in fade-in zoom-in'}`}>
-          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 mb-6">
+        <div className={`mb-8 flex flex-col items-center transition-all duration-700 ${loading ? 'opacity-0 h-0 overflow-hidden' : 'animate-in fade-in zoom-in'}`}>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 mb-4">
             <div className="relative group">
               <div className="absolute -inset-2 bg-blue-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <svg className="w-24 h-24 md:w-28 md:h-28 drop-shadow-sm" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -273,9 +307,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
               Nodal
             </h1>
           </div>
-          <p className={`text-xl md:text-2xl font-light max-w-2xl mx-auto leading-relaxed ${subTextClass}`}>
+          <p className={`text-xl md:text-2xl font-light max-w-2xl mx-auto leading-relaxed mb-6 ${subTextClass}`}>
             Unraveling the threads of your story with AI.
           </p>
+
+          {/* New Prominent Info Trigger */}
+          <button 
+             onClick={() => setShowInfo(true)}
+             className={`group flex items-center gap-2 px-5 py-2 rounded-full border backdrop-blur-md shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDark ? 'bg-white/5 border-white/20 text-gray-300 hover:bg-white/10 hover:border-blue-400 hover:text-white' : 'bg-white/50 border-slate-200 text-slate-600 hover:bg-white hover:border-blue-400 hover:text-blue-700'}`}
+          >
+             <Info size={16} className="text-blue-500 group-hover:animate-pulse" />
+             <span className="text-sm font-medium">What is Nodal?</span>
+             <ChevronRight size={14} className="opacity-50 group-hover:translate-x-1 transition-transform" />
+          </button>
         </div>
 
         {/* Main Card */}
@@ -542,15 +586,85 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
           )}
         </div>
 
+        {/* Info Modal */}
+        {showInfo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+             <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border ${isDark ? 'bg-slate-900 border-white/10' : 'bg-white border-slate-200'}`}>
+                
+                {/* Close Button */}
+                <button 
+                  onClick={() => setShowInfo(false)}
+                  className={`absolute top-4 right-4 p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-900'}`}
+                >
+                  <X size={24} />
+                </button>
+
+                <div className="p-8 space-y-8 text-left">
+                  
+                  {/* Description */}
+                  <div>
+                    <h2 className={`text-2xl font-bold mb-4 flex items-center gap-2 ${textClass}`}>
+                      <Info className="text-blue-500" />
+                      About Nodal
+                    </h2>
+                    <div className={`leading-relaxed space-y-4 ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>
+                      <p>
+                        Nodal is an advanced AI-powered platform that transforms linear narratives into dynamic, interactive network graphs. 
+                        By leveraging the multimodal reasoning capabilities of <strong>Gemini 3.0</strong>, Nodal deconstructs complex stories—from 
+                        novels to films—into structured data, revealing the hidden web of character relationships, influence dynamics, and plot progression.
+                      </p>
+                      <p>
+                        Whether you are a writer analyzing story structure, a student exploring literature, or a data enthusiast, Nodal provides 
+                        a new dimension of understanding, turning abstract narratives into tangible, navigable insights.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Team Section */}
+                  <div>
+                    <h2 className={`text-2xl font-bold mb-6 flex items-center gap-2 ${textClass}`}>
+                      <Users className="text-blue-500" />
+                      Meet the Team
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {TEAM_MEMBERS.map((member, idx) => (
+                        <div key={idx} className={`flex items-start gap-4 p-4 rounded-xl transition-all border ${isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
+                            <div className={`p-3 rounded-full flex-shrink-0 ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                              <Users size={20} />
+                            </div>
+                            <div>
+                              <h3 className={`font-bold text-lg leading-tight ${textClass}`}>{member.name}</h3>
+                              <p className={`text-xs mb-3 mt-1 font-mono uppercase tracking-wide ${subTextClass}`}>{member.role}</p>
+                              <div className="flex gap-3">
+                                  <a href={member.github} target="_blank" rel="noreferrer" className={`hover:text-blue-500 transition-colors ${subTextClass}`}>
+                                    <Github size={18} />
+                                  </a>
+                                  <a href={member.linkedin} target="_blank" rel="noreferrer" className={`hover:text-blue-500 transition-colors ${subTextClass}`}>
+                                    <Linkedin size={18} />
+                                  </a>
+                              </div>
+                            </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`p-6 border-t text-center text-sm ${isDark ? 'border-white/10 text-gray-500' : 'border-slate-100 text-slate-500'}`}>
+                  Built for the <a href="https://gemini3.devpost.com/" target="_blank" rel="noreferrer" className="text-blue-500 font-semibold hover:underline">Gemini 3 Hackathon</a> by <span className={textClass}>U Still Coding</span>
+                </div>
+             </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className={`mt-12 text-center text-sm transition-all duration-500 ${loading ? 'opacity-0' : 'animate-in fade-in duration-1000 delay-300'} ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
-          <p className="mb-2">Built for the <span className="text-blue-500 font-semibold">Gemini 3 Hackathon</span></p>
-          <p className="flex items-center justify-center gap-2">
-            By <span className={textClass}>U Still Coding</span> (USC CS Students)
-            <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
-            <a href="https://github.com/CodyQin/Nodal" target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-blue-500 transition-colors">
-              <Github size={14} /> GitHub
-            </a>
+          <p className="flex items-center justify-center gap-4">
+             <button onClick={() => setShowInfo(true)} className="hover:text-blue-500 transition-colors">About Team</button>
+             <span>•</span>
+             <a href="https://github.com/CodyQin/Nodal" target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-blue-500 transition-colors">
+               <Github size={14} /> Open Source on GitHub
+             </a>
           </p>
         </div>
       </div>
