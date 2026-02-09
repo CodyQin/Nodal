@@ -224,7 +224,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                <div className="mt-4 pt-4 border-t border-gray-200/20 relative z-10 flex justify-between items-center text-xs text-gray-500">
                   <span className="flex items-center gap-2">
                     <Sparkles size={12} className="text-purple-400" />
-                    Powered by Gemini 3.0 Flash Thinking
+                    Powered by Gemini 3.0 Pro Thinking
                   </span>
                   <span className="animate-pulse">Analyzing relationships & timeline...</span>
                </div>

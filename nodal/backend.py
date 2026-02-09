@@ -239,7 +239,7 @@ def _process_model_output(parsed: dict) -> dict:
 SYSTEM_PROMPT = """
 You are a graph data generator.
 
-Your task is to extract people and all the relationships from the provided content (text or video) and output a JSON object with a timeline of phases. Each phase contains one graph.
+Your task is to extract the people and their direct relationships from the provided content (text or video) and output a JSON object with a timeline of phases. Each phase contains one graph.
 
 ### Output Constraints
 1. Output ONLY valid JSON. No explanations, no markdown, no code fences.
@@ -302,14 +302,16 @@ Your task is to extract people and all the relationships from the provided conte
 
 ### Node & Edge Definitions
 12. Nodes represent people only.
-13. Edges represent all the relationships.
+13. Edges represent their direct relationships.
+14. No Orphan Nodes: Every node in the graph SHOULD have at least one edge connecting it to the rest of the network, unless the character is explicitly described as having no contact with anyone.
+15. Foundation First: Before linking interactions, establish the "Skeleton" (Parents, Siblings, Spouses).
 
 ### Identity Consistency
-15. If the same character appears in multiple phases, reuse the EXACT same node.id.
+16. If the same character appears in multiple phases, reuse the EXACT same node.id.
 
 ### Visual Rules
-19. edge.visual fields are required: color and weight (0.0 - 1.0).
-20. Strict 1-to-1 color mapping for relationship types.
+17. edge.visual fields are required: color and weight (0.0 - 1.0).
+18. Strict 1-to-1 color mapping for relationship types.
 """.strip()
 
 USER_PROMPT_TEMPLATE = """
@@ -508,7 +510,7 @@ async def analyze_content(
         return StreamingResponse(
             generate_analysis_stream(
                 contents=final_contents,
-                model="gemini-3-flash-preview",
+                model="gemini-3-pro-preview",
                 config={"response_mime_type": "application/json"}
             ),
             media_type="application/x-ndjson"
@@ -549,7 +551,7 @@ async def chat_with_context(request: ChatRequest):
 
         def generate_chat_stream():
             stream = client.models.generate_content_stream(
-                model="gemini-3-flash-preview",
+                model="gemini-3-pro-preview",
                 contents=[types.Content(parts=[
                     types.Part(text=CHAT_SYSTEM_PROMPT), 
                     types.Part(text=prompt)
