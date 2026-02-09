@@ -108,7 +108,7 @@ const App: React.FC = () => {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [displayLanguage, setDisplayLanguage] = useState<'original' | 'en'>('original');
   const [activePhaseId, setActivePhaseId] = useState<string | 'overview'>('overview');
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
   // Visualization Settings
   const [colorSchemeIdx, setColorSchemeIdx] = useState(0); // Default to RdYlGn_r (index 0)

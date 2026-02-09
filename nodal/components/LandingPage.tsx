@@ -35,22 +35,22 @@ const TEXT_EXAMPLES = [
     title: "Alice in Wonderland",
     lang: "English",
     type: "text",
-    filename: "alice_in_wonderland.txt",
-    path: "/examples/alice.txt"
+    filename: "Alice's Adventures in Wonderland.txt",
+    path: "/examples/Alice's Adventures in Wonderland.txt"
   },
   {
     title: "Les Misérables",
     lang: "French",
     type: "text",
-    filename: "les_miserables.txt",
-    path: "/examples/les_miserables.txt"
+    filename: "Les Misérables.txt",
+    path: "/examples/Les Misérables.txt"
   },
   {
     title: "Jane Eyre",
     lang: "English",
     type: "text",
-    filename: "jane_eyre.txt",
-    path: "/examples/jane_eyre.txt"
+    filename: "Jane Eyre.txt",
+    path: "/examples/Jane Eyre.txt"
   }
 ];
 
@@ -59,25 +59,29 @@ const TEAM_MEMBERS = [
     name: "Chenshuhao (Cody) Qin",
     role: "Full Stack / System Architecture",
     github: "https://github.com/CodyQin",
-    linkedin: "https://www.linkedin.com/in/chenshuhao-qin/"
+    linkedin: "https://www.linkedin.com/in/chenshuhao-qin/",
+    image: "https://github.com/CodyQin.png"
   },
   {
     name: "Xinran Wu",
     role: "Backend & Server Deployment",
     github: "https://github.com/xinranwu666",
-    linkedin: "https://www.linkedin.com/in/usc-xinran-wu/"
+    linkedin: "https://www.linkedin.com/in/usc-xinran-wu/",
+    image: "https://github.com/xinranwu666.png"
   },
   {
     name: "Yixin Xu",
     role: "Frontend & Quality Assessment",
     github: "https://github.com/iceu77",
-    linkedin: "http://linkedin.com/in/yixinx2004"
+    linkedin: "http://linkedin.com/in/yixinx2004",
+    image: "https://github.com/iceu77.png"
   },
   {
     name: "Beining Qian",
     role: "Frontend & Quality Assessment",
     github: "https://github.com/qianbeining",
-    linkedin: "http://linkedin.com/in/beining-qian-69501639b"
+    linkedin: "http://linkedin.com/in/beining-qian-69501639b",
+    image: "https://github.com/qianbeining.png"
   }
 ];
 
@@ -260,32 +264,33 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
   const exampleCardBg = isDark ? "bg-slate-800/80 border-gray-700 hover:bg-slate-700 hover:border-blue-500/50" : "bg-white border-slate-200 hover:bg-slate-50 hover:border-blue-300";
 
   return (
-    <div className={`min-h-screen bg-cover bg-center bg-no-repeat flex flex-col items-center justify-center relative transition-colors duration-500`}
+    <div className={`h-screen overflow-hidden bg-cover bg-center bg-no-repeat flex flex-col items-center justify-center relative transition-colors duration-500`}
          style={{ backgroundImage: isDark ? "url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')" : "url('https://images.unsplash.com/photo-1493246507139-91e8fad9978e?q=80&w=2070&auto=format&fit=crop')" }}>
       
       {/* Overlay */}
       <div className={`absolute inset-0 backdrop-blur-sm transition-colors duration-1000 ${isDark ? 'bg-slate-900/90' : 'bg-slate-50/80'}`}></div>
 
       {/* Top Right Controls - ONLY THEME NOW */}
-      <div className="absolute top-6 right-6 z-20 flex items-center gap-3">
+      <div className="absolute top-4 right-6 z-20 flex items-center gap-3">
          <button 
             onClick={toggleTheme} 
-            className={`p-3 rounded-full backdrop-blur-md border shadow-lg transition-all ${isDark ? 'bg-white/10 border-white/10 text-white hover:bg-white/20' : 'bg-white/60 border-slate-200 text-slate-800 hover:bg-white'}`}
+            className={`p-2.5 rounded-full backdrop-blur-md border shadow-lg transition-all ${isDark ? 'bg-white/10 border-white/10 text-white hover:bg-white/20' : 'bg-white/60 border-slate-200 text-slate-800 hover:bg-white'}`}
             title="Toggle Theme"
          >
-            {isDark ? <Moon size={20} /> : <Sun size={20} />}
+            {isDark ? <Moon size={18} /> : <Sun size={18} />}
          </button>
       </div>
 
-      {/* Content */}
-      <div className="relative z-10 w-full max-w-5xl px-6 py-12 flex flex-col items-center text-center">
+      {/* Content Container - Flex Justify Center for Vertical Alignment */}
+      <div className="relative z-10 w-full max-w-5xl px-6 h-full flex flex-col items-center justify-center text-center">
         
-        {/* Branding */}
-        <div className={`mb-8 flex flex-col items-center transition-all duration-700 ${loading ? 'opacity-0 h-0 overflow-hidden' : 'animate-in fade-in zoom-in'}`}>
-          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 mb-4">
+        {/* Branding - More Compact */}
+        <div className={`flex flex-col items-center transition-all duration-700 mb-6 ${loading ? 'opacity-0 h-0 overflow-hidden mb-0' : 'animate-in fade-in zoom-in'}`}>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-5 mb-2">
             <div className="relative group">
               <div className="absolute -inset-2 bg-blue-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <svg className="w-24 h-24 md:w-28 md:h-28 drop-shadow-sm" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* Reduced logo size */}
+              <svg className="w-16 h-16 md:w-20 md:h-20 drop-shadow-sm" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <linearGradient id="blueGradient" x1="20" y1="100" x2="100" y2="20" gradientUnits="userSpaceOnUse">
                     <stop stopColor="#1e40af" /> 
@@ -303,22 +308,23 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                 <circle cx="60" cy="60" r="5" className="fill-orange-500 animate-pulse" />
               </svg>
             </div>
-            <h1 className={`text-6xl md:text-7xl font-black tracking-tighter ${textClass}`}>
+            {/* Reduced Title Size */}
+            <h1 className={`text-4xl md:text-6xl font-black tracking-tighter ${textClass}`}>
               Nodal
             </h1>
           </div>
-          <p className={`text-xl md:text-2xl font-light max-w-2xl mx-auto leading-relaxed mb-6 ${subTextClass}`}>
+          {/* Reduced Subtitle Size & Margin */}
+          <p className={`text-lg md:text-xl font-light max-w-2xl mx-auto leading-relaxed mb-4 ${subTextClass}`}>
             Unraveling the threads of your story with AI.
           </p>
 
-          {/* New Prominent Info Trigger */}
           <button 
              onClick={() => setShowInfo(true)}
-             className={`group flex items-center gap-2 px-5 py-2 rounded-full border backdrop-blur-md shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDark ? 'bg-white/5 border-white/20 text-gray-300 hover:bg-white/10 hover:border-blue-400 hover:text-white' : 'bg-white/50 border-slate-200 text-slate-600 hover:bg-white hover:border-blue-400 hover:text-blue-700'}`}
+             className={`group flex items-center gap-2 px-4 py-1.5 rounded-full border backdrop-blur-md shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDark ? 'bg-white/5 border-white/20 text-gray-300 hover:bg-white/10 hover:border-blue-400 hover:text-white' : 'bg-white/50 border-slate-200 text-slate-600 hover:bg-white hover:border-blue-400 hover:text-blue-700'}`}
           >
-             <Info size={16} className="text-blue-500 group-hover:animate-pulse" />
-             <span className="text-sm font-medium">What is Nodal?</span>
-             <ChevronRight size={14} className="opacity-50 group-hover:translate-x-1 transition-transform" />
+             <Info size={14} className="text-blue-500 group-hover:animate-pulse" />
+             <span className="text-xs font-medium">What is Nodal?</span>
+             <ChevronRight size={12} className="opacity-50 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
 
@@ -327,21 +333,21 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
           
           {loading ? (
             /* Loading View */
-            <div className={`h-[550px] flex flex-col p-8 text-left relative overflow-hidden ${isDark ? 'bg-slate-900/95' : 'bg-white/95'}`}>
+            <div className={`h-[480px] flex flex-col p-8 text-left relative overflow-hidden ${isDark ? 'bg-slate-900/95' : 'bg-white/95'}`}>
                <div className="absolute top-0 right-0 p-8 opacity-10">
                   <BrainCircuit className="w-48 h-48 text-blue-500 animate-pulse" />
                </div>
 
                <div className="flex items-center justify-between mb-6 relative z-10">
-                 <h3 className={`text-2xl font-bold flex items-center gap-3 ${textClass}`}>
+                 <h3 className={`text-xl font-bold flex items-center gap-3 ${textClass}`}>
                    <Loader2 className="animate-spin text-blue-500" />
                    Gemini is Thinking...
                  </h3>
                  <button 
                    onClick={handleCancel}
-                   className="text-gray-400 hover:text-red-400 transition-colors flex items-center gap-2 text-sm border border-gray-600 rounded-full px-3 py-1 hover:border-red-400 hover:bg-red-500/10"
+                   className="text-gray-400 hover:text-red-400 transition-colors flex items-center gap-2 text-xs border border-gray-600 rounded-full px-3 py-1 hover:border-red-400 hover:bg-red-500/10"
                  >
-                   <XCircle size={16} /> Cancel
+                   <XCircle size={14} /> Cancel
                  </button>
                </div>
                
@@ -375,38 +381,38 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
               <div className="flex border-b border-gray-200/10">
                 <button
                   onClick={() => setActiveTab('story')}
-                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'story' ? tabActive : tabInactive}`}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'story' ? tabActive : tabInactive}`}
                 >
-                  <FileText size={18} /> Story Content
+                  <FileText size={16} /> Story Content
                 </button>
                 <button
                   onClick={() => setActiveTab('video')}
-                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'video' ? tabActive : tabInactive}`}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'video' ? tabActive : tabInactive}`}
                 >
-                  <Video size={18} /> Video
+                  <Video size={16} /> Video
                 </button>
                 <button
                   onClick={() => setActiveTab('json')}
-                  className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'json' ? tabActive : tabInactive}`}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'json' ? tabActive : tabInactive}`}
                 >
-                  <FileJson size={18} /> Load JSON
+                  <FileJson size={16} /> Load JSON
                 </button>
               </div>
 
               {/* Input Area */}
-              <div className={`p-6 ${inputBg}`}>
+              <div className={`p-5 ${inputBg}`}>
                 {activeTab === 'story' && (
-                  <div className="h-48 flex flex-col gap-4">
-                     <div className="flex justify-center gap-4 mb-2">
+                  <div className="h-40 flex flex-col gap-3">
+                     <div className="flex justify-center gap-3 mb-1">
                        <button 
                          onClick={() => setTextMode('paste')}
-                         className={`px-4 py-2 rounded-lg text-sm transition-colors ${textMode === 'paste' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${textMode === 'paste' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
                        >
                          Paste Text
                        </button>
                        <button 
                          onClick={() => setTextMode('upload')}
-                         className={`px-4 py-2 rounded-lg text-sm transition-colors ${textMode === 'upload' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${textMode === 'upload' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
                        >
                          Upload File
                        </button>
@@ -417,7 +423,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                           value={textInput}
                           onChange={(e) => setTextInput(e.target.value)}
                           placeholder="Paste your story text here (chapters, summaries, or full text)..."
-                          className={`flex-1 rounded-lg p-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none placeholder-gray-500 transition-all ${fieldBg}`}
+                          className={`flex-1 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none placeholder-gray-500 transition-all ${fieldBg}`}
                         />
                      ) : (
                         <div className={`flex-1 border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-colors relative ${isDark ? 'border-gray-600 bg-gray-800/30 hover:bg-gray-800/50' : 'border-slate-300 bg-white hover:bg-slate-50'}`}>
@@ -429,15 +435,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                           />
                           {file ? (
                             <div className="text-center">
-                              <FileText className="w-10 h-10 text-blue-400 mx-auto mb-2" />
-                              <p className={textClass}>{file.name}</p>
-                              <p className="text-sm text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+                              <FileText className="w-8 h-8 text-blue-400 mx-auto mb-1" />
+                              <p className={`text-sm ${textClass}`}>{file.name}</p>
+                              <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
                             </div>
                           ) : (
                             <div className="text-center text-gray-400 pointer-events-none">
-                              <UploadCloud className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                              <p>Click or drag file to upload</p>
-                              <p className="text-xs mt-1 opacity-50">PDF, DOCX, TXT supported</p>
+                              <UploadCloud className="w-8 h-8 mx-auto mb-1 opacity-50" />
+                              <p className="text-sm">Click or drag file</p>
+                              <p className="text-[10px] mt-1 opacity-50">PDF, DOCX, TXT</p>
                             </div>
                           )}
                         </div>
@@ -446,17 +452,17 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                 )}
 
                 {activeTab === 'video' && (
-                  <div className="h-48 flex flex-col gap-4">
-                    <div className="flex justify-center gap-4 mb-2">
+                  <div className="h-40 flex flex-col gap-3">
+                    <div className="flex justify-center gap-3 mb-1">
                        <button 
                          onClick={() => setVideoMode('url')}
-                         className={`px-4 py-2 rounded-lg text-sm transition-colors ${videoMode === 'url' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${videoMode === 'url' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
                        >
                          Video URL
                        </button>
                        <button 
                          onClick={() => setVideoMode('upload')}
-                         className={`px-4 py-2 rounded-lg text-sm transition-colors ${videoMode === 'upload' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${videoMode === 'upload' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
                        >
                          Upload MP4
                        </button>
@@ -469,12 +475,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                               type="text"
                               value={videoUrl}
                               onChange={(e) => setVideoUrl(e.target.value)}
-                              placeholder="Paste YouTube or Direct MP4 URL here..."
-                              className={`w-full rounded-lg pl-10 pr-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none placeholder-gray-500 transition-all ${fieldBg}`}
+                              placeholder="Paste YouTube or Direct MP4 URL..."
+                              className={`w-full rounded-lg pl-9 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none placeholder-gray-500 transition-all ${fieldBg}`}
                             />
-                            <Youtube className="absolute left-3 top-3 text-red-500" size={20} />
+                            <Youtube className="absolute left-3 top-2.5 text-red-500" size={18} />
                          </div>
-                         <p className="text-xs text-gray-500 mt-2 text-center">Supports YouTube URLs or direct video links.</p>
+                         <p className="text-[10px] text-gray-500 mt-2 text-center">Supports YouTube URLs or direct video links.</p>
                        </div>
                     ) : (
                       <div className={`flex-1 border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-colors relative ${isDark ? 'border-gray-600 bg-gray-800/30 hover:bg-gray-800/50' : 'border-slate-300 bg-white hover:bg-slate-50'}`}>
@@ -486,15 +492,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                         />
                         {videoFile ? (
                           <div className="text-center">
-                            <Video className="w-10 h-10 text-purple-400 mx-auto mb-2" />
-                            <p className={textClass}>{videoFile.name}</p>
-                            <p className="text-sm text-gray-500">{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</p>
+                            <Video className="w-8 h-8 text-purple-400 mx-auto mb-1" />
+                            <p className={`text-sm ${textClass}`}>{videoFile.name}</p>
+                            <p className="text-xs text-gray-500">{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</p>
                           </div>
                         ) : (
                           <div className="text-center text-gray-400 pointer-events-none">
-                            <UploadCloud className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                            <p>Upload Video File</p>
-                            <p className="text-xs mt-1 opacity-50">MP4, MOV supported (Max 2GB)</p>
+                            <UploadCloud className="w-8 h-8 mx-auto mb-1 opacity-50" />
+                            <p className="text-sm">Upload Video File</p>
+                            <p className="text-[10px] mt-1 opacity-50">MP4, MOV (Max 2GB)</p>
                           </div>
                         )}
                       </div>
@@ -504,7 +510,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                 
                 {/* JSON Upload Block */}
                 {activeTab === 'json' && (
-                   <div className="h-48 flex flex-col">
+                   <div className="h-40 flex flex-col">
                      <div className={`flex-1 border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-colors relative ${isDark ? 'border-gray-600 bg-gray-800/30 hover:bg-gray-800/50' : 'border-slate-300 bg-white hover:bg-slate-50'}`}>
                         <input 
                           type="file" 
@@ -514,15 +520,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                         />
                         {jsonFile ? (
                           <div className="text-center">
-                            <FileJson className="w-10 h-10 text-yellow-500 mx-auto mb-2" />
-                            <p className={textClass}>{jsonFile.name}</p>
-                            <p className="text-sm text-gray-500">{(jsonFile.size / 1024).toFixed(1)} KB</p>
+                            <FileJson className="w-8 h-8 text-yellow-500 mx-auto mb-1" />
+                            <p className={`text-sm ${textClass}`}>{jsonFile.name}</p>
+                            <p className="text-xs text-gray-500">{(jsonFile.size / 1024).toFixed(1)} KB</p>
                           </div>
                         ) : (
                           <div className="text-center text-gray-400 pointer-events-none">
-                            <UploadCloud className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                            <p>Upload Analysis JSON</p>
-                            <p className="text-xs mt-1 opacity-50">.json files supported</p>
+                            <UploadCloud className="w-8 h-8 mx-auto mb-1 opacity-50" />
+                            <p className="text-sm">Upload Analysis JSON</p>
+                            <p className="text-[10px] mt-1 opacity-50">.json files supported</p>
                           </div>
                         )}
                      </div>
@@ -530,8 +536,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                 )}
 
                 {error && (
-                  <div className="mt-4 p-3 bg-red-900/50 border border-red-700/50 rounded text-red-200 text-sm">
-                    Error: {error}
+                  <div className="mt-3 p-2 bg-red-900/50 border border-red-700/50 rounded text-red-200 text-xs text-center">
+                    {error}
                   </div>
                 )}
 
@@ -545,36 +551,36 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                     (activeTab === 'video' && videoMode === 'url' && !videoUrl.trim()) ||
                     (activeTab === 'video' && videoMode === 'upload' && !videoFile)
                   }
-                  className="w-full mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-900/50"
+                  className="w-full mt-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 px-6 rounded-lg transition-all transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-900/50 text-sm"
                 >
                    {activeTab === 'json' ? (
-                     <>Load Graph <ArrowRight size={18} /></>
+                     <>Load Graph <ArrowRight size={16} /></>
                    ) : (
-                     <>Generate Graph Timeline <ArrowRight size={18} /></>
+                     <>Generate Graph Timeline <ArrowRight size={16} /></>
                    )}
                 </button>
 
                 {/* Example Examples Section */}
                 {(activeTab === 'story' || activeTab === 'video') && (
-                  <div className="mt-8 border-t border-gray-200/10 pt-6">
-                    <p className={`text-xs font-bold uppercase tracking-wider mb-4 flex items-center justify-center gap-2 ${subTextClass}`}>
-                      <Sparkles size={12} className="text-yellow-500" />
+                  <div className="mt-6 border-t border-gray-200/10 pt-4">
+                    <p className={`text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center justify-center gap-1.5 ${subTextClass}`}>
+                      <Sparkles size={10} className="text-yellow-500" />
                       Try an Example
                     </p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                       {(activeTab === 'story' ? TEXT_EXAMPLES : VIDEO_EXAMPLES).map((example, idx) => (
                         <button
                           key={idx}
                           onClick={() => loadExample(example)}
-                          className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-200 group ${exampleCardBg}`}
+                          className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all duration-200 group ${exampleCardBg}`}
                         >
                            {example.type === 'video' ? (
-                             <PlayCircle size={24} className="mb-2 text-red-500 group-hover:scale-110 transition-transform" />
+                             <PlayCircle size={18} className="mb-1 text-red-500 group-hover:scale-110 transition-transform" />
                            ) : (
-                             <BookOpen size={24} className="mb-2 text-blue-500 group-hover:scale-110 transition-transform" />
+                             <BookOpen size={18} className="mb-1 text-blue-500 group-hover:scale-110 transition-transform" />
                            )}
-                           <span className={`text-sm font-semibold truncate w-full ${textClass}`}>{example.title}</span>
-                           <span className="text-[10px] text-gray-500">{example.lang} • {example.type === 'video' ? 'Video' : 'Text'}</span>
+                           <span className={`text-xs font-semibold truncate w-full ${textClass}`}>{example.title}</span>
+                           <span className="text-[9px] text-gray-500">{example.lang} • {example.type === 'video' ? 'Video' : 'Text'}</span>
                         </button>
                       ))}
                     </div>
@@ -629,9 +635,17 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {TEAM_MEMBERS.map((member, idx) => (
                         <div key={idx} className={`flex items-start gap-4 p-4 rounded-xl transition-all border ${isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
-                            <div className={`p-3 rounded-full flex-shrink-0 ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
-                              <Users size={20} />
-                            </div>
+                           {member.image ? (
+                             <img 
+                               src={member.image} 
+                               alt={member.name} 
+                               className="w-12 h-12 rounded-full object-cover border-2 border-blue-500/30 flex-shrink-0"
+                             />
+                           ) : (
+                              <div className={`p-3 rounded-full flex-shrink-0 ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                                <Users size={20} />
+                              </div>
+                           )}
                             <div>
                               <h3 className={`font-bold text-lg leading-tight ${textClass}`}>{member.name}</h3>
                               <p className={`text-xs mb-3 mt-1 font-mono uppercase tracking-wide ${subTextClass}`}>{member.role}</p>
@@ -658,12 +672,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
         )}
 
         {/* Footer */}
-        <div className={`mt-12 text-center text-sm transition-all duration-500 ${loading ? 'opacity-0' : 'animate-in fade-in duration-1000 delay-300'} ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+        <div className={`mt-6 text-center text-xs transition-all duration-500 ${loading ? 'opacity-0' : 'animate-in fade-in duration-1000 delay-300'} ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
           <p className="flex items-center justify-center gap-4">
              <button onClick={() => setShowInfo(true)} className="hover:text-blue-500 transition-colors">About Team</button>
              <span>•</span>
              <a href="https://github.com/CodyQin/Nodal" target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-blue-500 transition-colors">
-               <Github size={14} /> Open Source on GitHub
+               <Github size={12} /> Open Source on GitHub
              </a>
           </p>
         </div>
