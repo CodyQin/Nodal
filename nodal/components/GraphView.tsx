@@ -230,12 +230,6 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
         event.stopPropagation();
         const { x, y } = getRelativePosition(event);
         setSelectedElement({ type: 'edge', data: d, x, y });
-      })
-      .on("mouseenter", function() {
-          select(this).attr("stroke-opacity", 1);
-      })
-      .on("mouseleave", function() {
-          select(this).attr("stroke-opacity", 0.6);
       });
 
     // --- Render Nodes (Bubble Style) ---
@@ -324,6 +318,40 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
           ? "0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,1)"
           : "0 1px 2px rgba(255,255,255,0.8), 0 0 3px rgba(255,255,255,1)"
       ); 
+
+    // --- Link Hover Logic (Defined after nodeGroup/text are created) ---
+    link
+      .on("mouseenter", function(event, d: any) {
+         const sId = d.source.id;
+         const tId = d.target.id;
+         
+         // Highlight specific link
+         select(this)
+            .attr("stroke-opacity", 1)
+            .attr("stroke-width", getLinkWidth(d.visual?.weight, true));
+
+         // Dim other links
+         link.transition().duration(200)
+            .style("opacity", (l: any) => l === d ? 1 : 0.1);
+
+         // Highlight connected nodes, dim others
+         nodeGroup.transition().duration(200)
+            .style("opacity", (n: any) => (n.id === sId || n.id === tId) ? 1 : 0.1);
+            
+         text.transition().duration(200)
+            .style("opacity", (n: any) => (n.id === sId || n.id === tId) ? 1 : 0.1);
+      })
+      .on("mouseleave", function(event, d: any) {
+         // Reset this link style
+         select(this)
+            .attr("stroke-opacity", 0.6)
+            .attr("stroke-width", getLinkWidth(d.visual?.weight, false));
+
+         // Reset all opacities
+         link.transition().duration(200).style("opacity", 1);
+         nodeGroup.transition().duration(200).style("opacity", 1);
+         text.transition().duration(200).style("opacity", 1);
+      });
       
     updatePositions(); 
     

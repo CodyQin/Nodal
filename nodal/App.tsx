@@ -298,7 +298,7 @@ const App: React.FC = () => {
               className={`flex items-center gap-2 px-3 py-2 rounded-lg backdrop-blur border transition-all ${headerBgClass}`}
               title="Toggle Day/Night Mode"
             >
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+              {theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
 
             {/* Interactive Heatmap Legend & Control */}
@@ -355,7 +355,6 @@ const App: React.FC = () => {
 
         {/* Graph Component */}
         <GraphView 
-          key={`${activePhaseId}-${colorSchemeIdx}`} 
           data={currentGraph} 
           language={displayLanguage} 
           theme={theme}

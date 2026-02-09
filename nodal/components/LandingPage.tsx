@@ -239,7 +239,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
       {/* Theme Toggle Top Right */}
       <div className="absolute top-6 right-6 z-20">
          <button onClick={toggleTheme} className={`p-3 rounded-full backdrop-blur-md border shadow-lg transition-all ${isDark ? 'bg-white/10 border-white/10 text-white hover:bg-white/20' : 'bg-white/60 border-slate-200 text-slate-800 hover:bg-white'}`}>
-            {isDark ? <Sun size={20} /> : <Moon size={20} />}
+            {isDark ? <Moon size={20} /> : <Sun size={20} />}
          </button>
       </div>
 

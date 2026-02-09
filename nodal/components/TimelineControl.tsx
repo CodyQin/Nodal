@@ -105,7 +105,6 @@ const TimelineControl: React.FC<TimelineControlProps> = ({ phases, activePhaseId
           <button
             onClick={() => {
               onPhaseSelect('overview');
-              setIsSummaryExpanded(false);
             }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all whitespace-nowrap flex-shrink-0 ${
               activePhaseId === 'overview' ? btnActive : btnInactive
@@ -126,7 +125,6 @@ const TimelineControl: React.FC<TimelineControlProps> = ({ phases, activePhaseId
                   key={phase.phase_id}
                   onClick={() => {
                     onPhaseSelect(phase.phase_id);
-                    setIsSummaryExpanded(false); 
                   }}
                   className={`group relative flex flex-col items-start px-4 py-2 rounded-xl transition-all min-w-[140px] max-w-[200px] border flex-shrink-0 ${
                     isActive ? phaseActive : phaseInactive
