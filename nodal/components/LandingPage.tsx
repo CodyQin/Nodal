@@ -510,7 +510,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                 
                 {/* JSON Upload Block */}
                 {activeTab === 'json' && (
-                   <div className="h-40 flex flex-col">
+                   <div className="h-40 flex flex-col gap-2">
                      <div className={`flex-1 border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-colors relative ${isDark ? 'border-gray-600 bg-gray-800/30 hover:bg-gray-800/50' : 'border-slate-300 bg-white hover:bg-slate-50'}`}>
                         <input 
                           type="file" 
@@ -532,6 +532,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalysisComplete, theme, to
                           </div>
                         )}
                      </div>
+                     <p className={`text-[10px] text-center opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+                        Upload a <strong>Nodal-format JSON</strong> file previously downloaded from this app.
+                     </p>
                    </div>
                 )}
 
