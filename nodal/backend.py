@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 
 from google import genai
 from google.genai import types
+from google.api_core.exceptions import ServiceUnavailable, ResourceExhausted, InternalServerError
 from docx import Document
 import networkx as nx
 
@@ -372,49 +373,98 @@ def generate_analysis_stream(contents: List[types.Content], model: str, config: 
     # Use types.ThinkingConfig as per latest SDK patterns
     config["thinking_config"] = types.ThinkingConfig(include_thoughts=True)
 
-    try:
-        response_stream = client.models.generate_content_stream(
-            model=model,
-            contents=contents,
-            config=config
-        )
+    max_retries = 3
+    current_attempt = 0
 
-        full_json_response = ""
-
-        for chunk in response_stream:
-            # chunk is a GenerateContentResponse
-            if not chunk.candidates:
-                continue
-            
-            # Iterate through parts to separate thoughts from model text
-            for part in chunk.candidates[0].content.parts:
-                if part.thought:
-                    # Stream thought chunk to client
-                    event = {"type": "thought", "text": part.text}
-                    yield json.dumps(event) + "\n"
-                elif part.text:
-                    # Accumulate JSON text for final parsing
-                    full_json_response += part.text
-
-        # After stream finishes, parse the accumulated JSON
+    while current_attempt <= max_retries:
         try:
-            json_text = _extract_json_text(full_json_response)
-            parsed_json = json.loads(json_text)
-            final_data = _process_model_output(parsed_json)
-            
-            event = {"type": "result", "data": final_data}
-            yield json.dumps(event) + "\n"
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse final JSON: {e}")
-            logger.error(f"Raw output: {full_json_response[:1000]}...")
-            yield json.dumps({"type": "error", "message": "Failed to parse AI response into valid JSON."}) + "\n"
-        except Exception as e:
-            logger.error(f"Processing error: {e}")
-            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+            response_stream = client.models.generate_content_stream(
+                model=model,
+                contents=contents,
+                config=config
+            )
 
-    except Exception as e:
-        logger.error(f"Stream Error: {e}")
-        yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+            full_json_response = ""
+            json_complete = False
+
+            for chunk in response_stream:
+                # chunk is a GenerateContentResponse
+                if not chunk.candidates:
+                    continue
+                
+                # Iterate through parts to separate thoughts from model text
+                for part in chunk.candidates[0].content.parts:
+                    if part.thought:
+                        # Stream thought chunk to client
+                        event = {"type": "thought", "text": part.text}
+                        yield json.dumps(event) + "\n"
+                    elif part.text:
+                        # Accumulate JSON text for final parsing
+                        full_json_response += part.text
+
+            # After stream finishes, parse the accumulated JSON
+            try:
+                json_text = _extract_json_text(full_json_response)
+                parsed_json = json.loads(json_text)
+                final_data = _process_model_output(parsed_json)
+                
+                event = {"type": "result", "data": final_data}
+                yield json.dumps(event) + "\n"
+                json_complete = True
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse final JSON: {e}")
+                logger.error(f"Raw output: {full_json_response[:1000]}...")
+                # If JSON is invalid, it might be an interrupted response due to load, treat as potential retry if specific
+                # But usually JSON error is model failure. 
+                # For now, we consider this a final error unless we want to retry purely on JSON malformation.
+                # Let's fail for JSON errors to avoid wasting tokens on bad prompts.
+                yield json.dumps({"type": "error", "message": "Failed to parse AI response into valid JSON."}) + "\n"
+                return
+            except Exception as e:
+                logger.error(f"Processing error: {e}")
+                yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+                return
+
+            if json_complete:
+                return # Success, exit loop
+
+        except (ServiceUnavailable, ResourceExhausted, InternalServerError) as e:
+            # Handle 503, 429, 500 errors (Overloaded, Quota, Internal)
+            current_attempt += 1
+            if current_attempt <= max_retries:
+                wait_time = 2 ** current_attempt # Exponential backoff: 2s, 4s, 8s
+                msg = f"Model overloaded (503). Retrying automatically in {wait_time}s..."
+                logger.warning(msg)
+                
+                # Inform the frontend user via the thought stream
+                yield json.dumps({"type": "thought", "text": f"\n\n[{msg}]\n"}) + "\n"
+                time.sleep(wait_time)
+                continue
+            else:
+                logger.error("Max retries reached for 503/429 error.")
+                yield json.dumps({"type": "error", "message": "The model is overloaded. Please try again later."}) + "\n"
+                return
+        
+        except Exception as e:
+            # Check for generic exception that might contain the 503 code text if SDK doesn't wrap it well
+            error_str = str(e)
+            if "503" in error_str or "Overloaded" in error_str or "429" in error_str:
+                 current_attempt += 1
+                 if current_attempt <= max_retries:
+                    wait_time = 2 ** current_attempt
+                    msg = f"Model overloaded. Retrying automatically in {wait_time}s..."
+                    logger.warning(f"{msg} (Error: {error_str})")
+                    yield json.dumps({"type": "thought", "text": f"\n\n[{msg}]\n"}) + "\n"
+                    time.sleep(wait_time)
+                    continue
+                 else:
+                    yield json.dumps({"type": "error", "message": "The model is overloaded. Please try again later."}) + "\n"
+                    return
+            
+            # Genuine other error
+            logger.error(f"Stream Error: {e}")
+            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+            return
 
 
 @app.post("/api/analyze")
