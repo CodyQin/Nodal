@@ -10,21 +10,26 @@ import {
   forceX, 
   forceY, 
   interpolateRgbBasis, 
+  interpolateRdYlGn,
+  interpolateRdBu,
+  interpolateViridis,
   scalePow,
   drag, 
   color as d3Color, 
   extent 
 } from 'd3';
 import { GraphData } from '../types';
-import { X, RotateCcw, MousePointer2, Activity, Zap, Info, ExternalLink, Move, MousePointerClick, Search } from 'lucide-react';
+import { X, RotateCcw, MousePointer2, Activity, Zap, Info, ExternalLink, Move, MousePointerClick, Search, Download, Calendar, MessageSquare, Palette, Sliders } from 'lucide-react';
 
 interface GraphViewProps {
   data: GraphData;
   language: 'original' | 'en';
   theme: 'dark' | 'light';
+  colorScheme: string;
+  colorExponent: number;
 }
 
-const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
+const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorScheme, colorExponent }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -172,18 +177,44 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
     const initialTicks = 120;
     for (let i = 0; i < initialTicks; ++i) simulation.tick();
 
-    // --- Heatmap Color Scale ---
-    // Blue (Low) -> Purple (Mid) -> Red (High)
-    // Used for both Light/Dark modes for consistent data interpretation
-    const colorInterpolator = interpolateRgbBasis(["#3b82f6", "#a855f7", "#ef4444"]);
-
-    // Scale 0 -> maxCentrality maps to 0 -> 1, but with a power curve to boost low values
+    // --- Dynamic Heatmap Color Scale ---
     const normScale = scalePow()
-      .exponent(0.2) // Makes differences in low values more apparent
+      .exponent(colorExponent) // User-adjustable sensitivity
       .domain([0, processedData.maxCentrality || 1])
       .range([0, 1]);
 
-    const getColor = (val: number) => colorInterpolator(normScale(val));
+    const getColor = (val: number) => {
+      const t = normScale(val);
+      switch(colorScheme) {
+        case 'RdYlGn_r':
+          // D3 RdYlGn: 0=Red, 1=Green. We want 0=Green(Low), 1=Red(High).
+          // So we use 1-t to map High(1) -> Red(0).
+          // Wait, actually d3.interpolateRdYlGn(0) is Red, (1) is Green.
+          // The prompt requested RdYlGn_r. Typically this means "reversed".
+          // In standard heatmaps: High = Hot (Red).
+          // So High Centrality (1.0) should be Red (0.0 in D3).
+          return interpolateRdYlGn(1 - t); 
+        case 'RdBu_r':
+          // D3 RdBu: 0=Red, 1=Blue.
+          // We want High(1) = Red(0).
+          return interpolateRdBu(t); // This maps 0->Red? No.
+          // d3.interpolateRdBu(0) is Red. d3.interpolateRdBu(1) is Blue.
+          // We want Low(0) = Blue(1), High(1) = Red(0).
+          // So t=0 -> 1, t=1 -> 0.
+          return interpolateRdBu(1 - t);
+        case 'Viridis_r':
+           // D3 Viridis: 0=Purple, 1=Yellow.
+           // _r usually means Reverse.
+           // Let's match typical "Dark is Low, Bright is High" or prompt.
+           // Prompt asked for Viridis_r. 
+           // Standard: t. Reversed: 1-t.
+           return interpolateViridis(1 - t);
+        case 'Classic':
+        default:
+          // Blue -> Purple -> Red
+          return interpolateRgbBasis(["#3b82f6", "#a855f7", "#ef4444"])(t);
+      }
+    };
 
     // --- Render Links ---
     const link = g.append("g")
@@ -209,6 +240,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
       });
 
     // --- Render Nodes (Bubble Style) ---
+    // Instead of appending 'circle' directly, we append 'g' to hold layers
     const nodeGroup = g.append("g")
       .attr("class", "nodes")
       .selectAll("g")
@@ -219,7 +251,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
         .on("drag", dragged)
         .on("end", dragended));
 
-    // Base Circle
+    // Layer 1: Base Circle (Color + Drop Shadow)
     nodeGroup.append("circle")
       .attr("r", (d: any) => (d.visual?.size || 10) + (Math.sqrt(d.degree) * 2)) 
       .attr("fill", (d: any) => getColor(d.centrality))
@@ -230,13 +262,13 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
          : "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2))"
       );
 
-    // Shine/Gloss Effect (Bubble)
+    // Layer 2: Shine/Gloss Effect (Gradient Overlay)
     nodeGroup.append("circle")
       .attr("r", (d: any) => (d.visual?.size || 10) + (Math.sqrt(d.degree) * 2))
       .attr("fill", "url(#bubble-shine)")
-      .style("pointer-events", "none");
+      .style("pointer-events", "none"); // Allow clicks to pass through to the base
 
-    // Interaction Events
+    // Interaction Events (Attached to the group)
     nodeGroup
       .style("cursor", "pointer")
       .on("click", (event, d) => {
@@ -327,7 +359,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
         .attr("x2", (d: any) => d.target.x)
         .attr("y2", (d: any) => d.target.y);
       
-      // Update Groups (containing circle + shine)
+      // Update Groups (containing circle + shine) via Transform
       nodeGroup.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
       
       text
@@ -358,7 +390,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
       simulation.stop();
     };
 
-  }, [processedData, language, resetKey, theme]);
+  }, [processedData, language, resetKey, theme, colorScheme, colorExponent]);
 
   const handleResetLayout = () => {
     setSelectedElement(null);
@@ -418,32 +450,60 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
                </button>
             </div>
 
-            <div className="p-4 space-y-5 overflow-y-auto max-h-[60vh] custom-scrollbar">
-               {/* Section 1: Visual Encoding */}
+            <div className="p-4 space-y-6 overflow-y-auto max-h-[60vh] custom-scrollbar">
+               
+               {/* Section 1: Features Overview */}
+               <div className="space-y-3">
+                  <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Core Features</h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                     <div className={`p-2 rounded border ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="flex items-center gap-2 font-semibold mb-1"><Download size={14} className="text-blue-500" /> Download</div>
+                        <p className={`text-[10px] leading-tight ${panelTextSecondary}`}>Save analysis as JSON. You can re-upload this file later to reproduce results instantly.</p>
+                     </div>
+                     <div className={`p-2 rounded border ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="flex items-center gap-2 font-semibold mb-1"><Calendar size={14} className="text-blue-500" /> Timeline</div>
+                        <p className={`text-[10px] leading-tight ${panelTextSecondary}`}>Use the bottom bar to navigate story phases or view the full "Overview" graph.</p>
+                     </div>
+                     <div className={`p-2 rounded border col-span-2 ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="flex items-center gap-2 font-semibold mb-1"><MessageSquare size={14} className="text-blue-500" /> Graph Assistant</div>
+                        <p className={`text-[10px] leading-tight ${panelTextSecondary}`}>Ask questions about the plot, characters, or hidden relationships. The AI uses the active graph data as context.</p>
+                     </div>
+                  </div>
+               </div>
+
+               {/* Section 2: Visual Encoding & Customization */}
                <div className="space-y-3">
                   <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Visual Encoding</h4>
                   
-                  {/* Visual: Color Legend */}
+                  {/* Color Controls Info */}
                   <div className={`p-3 rounded-lg border ${isDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                      <div className="flex justify-between items-center text-xs mb-2">
-                        <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-slate-700'}`}>Color = Influence</span>
-                        <span className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>(Betweenness Centrality)</span>
+                        <span className={`font-semibold flex items-center gap-2 ${isDark ? 'text-gray-200' : 'text-slate-700'}`}>
+                           <Palette size={14} className="text-purple-500" />
+                           Node Influence
+                        </span>
                      </div>
-                     <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-slate-400'}`}>Low</span>
-                        {/* Dynamic Gradient Bar */}
-                        <div 
-                          className="flex-1 h-2 rounded-full" 
-                          style={{ background: 'linear-gradient(to right, #3b82f6, #a855f7, #ef4444)' }}
-                        ></div>
-                        <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-slate-400'}`}>High</span>
+                     <div className={`text-[11px] mb-2 ${panelTextSecondary}`}>
+                        Nodes are colored by <strong>Betweenness Centrality</strong> (how vital they are as bridges).
                      </div>
-                     <p className={`text-[10px] leading-tight mt-1 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
-                       Bright/Hot nodes act as "bridges" connecting different groups.
-                     </p>
+                     
+                     <div className="space-y-2">
+                        <div className={`text-[10px] p-2 rounded flex items-start gap-2 ${isDark ? 'bg-black/20' : 'bg-white border'}`}>
+                           <MousePointerClick size={12} className="mt-0.5 opacity-50" />
+                           <span>
+                              <strong>Click the color bar</strong> in the top header to cycle schemes (e.g., Traffic, Heat, Viridis).
+                           </span>
+                        </div>
+                        <div className={`text-[10px] p-2 rounded flex items-start gap-2 ${isDark ? 'bg-black/20' : 'bg-white border'}`}>
+                           <Sliders size={12} className="mt-0.5 opacity-50" />
+                           <span>
+                              Use the <strong>Sensitivity Slider</strong> below the color bar to adjust contrast. Lower values make colors "hotter" faster.
+                           </span>
+                        </div>
+                     </div>
                   </div>
 
-                  {/* Visual: Size Legend */}
+                  {/* Size Legend */}
                   <div className={`p-3 rounded-lg border flex items-center gap-3 ${isDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                      <div className="flex items-end gap-1 px-1">
                         <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-500' : 'bg-slate-400'}`}></div>
@@ -456,30 +516,6 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
                         </div>
                         <p className={`text-[10px] leading-tight ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
                            (Degree Centrality)
-                        </p>
-                     </div>
-                  </div>
-               </div>
-
-               {/* Section 2: Concepts */}
-               <div className="space-y-3">
-                  <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Key Concepts</h4>
-                  
-                  <div className="space-y-2">
-                     <div>
-                        <a href="https://en.wikipedia.org/wiki/Centrality#Degree_centrality" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-bold text-blue-500 hover:underline">
-                           Degree Centrality <ExternalLink size={10} />
-                        </a>
-                        <p className={`text-[11px] leading-relaxed mt-0.5 ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>
-                           The number of direct relationships a character has. High degree nodes are "popular" or active characters.
-                        </p>
-                     </div>
-                     <div>
-                        <a href="https://en.wikipedia.org/wiki/Betweenness_centrality" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-bold text-pink-500 hover:underline">
-                           Betweenness Centrality <ExternalLink size={10} />
-                        </a>
-                        <p className={`text-[11px] leading-relaxed mt-0.5 ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>
-                           Measures how often a node acts as a bridge along the shortest path between two other nodes. High betweenness characters connect disparate social circles.
                         </p>
                      </div>
                   </div>

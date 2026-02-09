@@ -4,7 +4,7 @@ import GraphView from './components/GraphView';
 import ChatPanel from './components/ChatPanel';
 import TimelineControl from './components/TimelineControl';
 import { AnalysisResult, GraphData, Phase, Node, Edge } from './types';
-import { ArrowLeft, Languages, Download, Sun, Moon, Info } from 'lucide-react';
+import { ArrowLeft, Languages, Download, Sun, Moon, Info, Settings2 } from 'lucide-react';
 
 // Helper to calculate Betweenness Centrality (Brandes Algorithm)
 // We calculate this on the frontend for the merged "Overview" graph
@@ -96,11 +96,25 @@ const calculateBetweenness = (nodes: Node[], edges: Edge[]) => {
   return betweenness;
 };
 
+// Color Schemes Definition
+const COLOR_SCHEMES = [
+  { id: 'RdYlGn_r', name: 'Traffic', gradient: 'linear-gradient(to right, #1a9850, #ffffbf, #d73027)' }, // Green -> Red
+  { id: 'RdBu_r', name: 'Hot/Cold', gradient: 'linear-gradient(to right, #2166ac, #f7f7f7, #b2182b)' }, // Blue -> Red
+  { id: 'Viridis_r', name: 'Viridis', gradient: 'linear-gradient(to right, #fde725, #21918c, #440154)' }, // Yellow -> Purple
+  { id: 'Classic', name: 'Classic', gradient: 'linear-gradient(to right, #3b82f6, #a855f7, #ef4444)' }, // Blue -> Purple -> Red
+];
+
 const App: React.FC = () => {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [displayLanguage, setDisplayLanguage] = useState<'original' | 'en'>('original');
   const [activePhaseId, setActivePhaseId] = useState<string | 'overview'>('overview');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  // Visualization Settings
+  const [colorSchemeIdx, setColorSchemeIdx] = useState(0); // Default to RdYlGn_r (index 0)
+  const [colorExponent, setColorExponent] = useState(0.5);
+
+  const activeColorScheme = COLOR_SCHEMES[colorSchemeIdx];
 
   // Compute the Overview Graph from all phases
   const overviewGraph = useMemo<GraphData | null>(() => {
@@ -210,6 +224,10 @@ const App: React.FC = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
+  const cycleColorScheme = () => {
+    setColorSchemeIdx((prev) => (prev + 1) % COLOR_SCHEMES.length);
+  };
+
   if (!analysisResult || !currentGraph) {
     return (
       <LandingPage 
@@ -234,9 +252,6 @@ const App: React.FC = () => {
   const bgClass = theme === 'dark' ? 'bg-slate-900' : 'bg-slate-50';
   const headerBgClass = theme === 'dark' ? 'bg-slate-800/80 border-white/10 text-white hover:bg-white/10' : 'bg-white/80 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-sm';
   const statsBgClass = theme === 'dark' ? 'bg-slate-800/80 border-white/10 text-white' : 'bg-white/80 border-slate-200 text-slate-800 shadow-sm';
-
-  // Gradient definitions for the legend (Blue -> Purple -> Red)
-  const heatmapGradient = "linear-gradient(to right, #3b82f6, #a855f7, #ef4444)";
 
   return (
     <div className={`flex h-screen w-screen ${bgClass} overflow-hidden transition-colors duration-500`}>
@@ -286,17 +301,42 @@ const App: React.FC = () => {
               {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
-            {/* Always Visible Heatmap Legend */}
-            <div className={`flex flex-col justify-center px-4 py-2 rounded-lg backdrop-blur border transition-all gap-1 ${headerBgClass}`}>
-                <div className="flex justify-between items-center w-32">
-                   <span className="text-[9px] uppercase font-bold opacity-70">Low</span>
-                   <span className="text-[9px] uppercase font-bold opacity-70">Influence</span>
-                   <span className="text-[9px] uppercase font-bold opacity-70">High</span>
-                </div>
+            {/* Interactive Heatmap Legend & Control */}
+            <div className={`flex flex-col justify-center px-4 py-2 rounded-lg backdrop-blur border transition-all gap-2 group ${headerBgClass}`}>
+                
+                {/* Clickable Legend Bar */}
                 <div 
-                  className="w-32 h-2 rounded-full"
-                  style={{ background: heatmapGradient }}
-                ></div>
+                  className="cursor-pointer"
+                  onClick={cycleColorScheme}
+                  title={`Click to change color scheme. Current: ${activeColorScheme.name}`}
+                >
+                   <div className="flex justify-between items-center w-36 mb-1">
+                      <span className="text-[9px] uppercase font-bold opacity-70">Low</span>
+                      <span className="text-[9px] uppercase font-bold opacity-70 flex items-center gap-1">
+                        Influence <Settings2 size={10} className="opacity-50" />
+                      </span>
+                      <span className="text-[9px] uppercase font-bold opacity-70">High</span>
+                   </div>
+                   <div 
+                      className="w-36 h-2 rounded-full shadow-inner ring-1 ring-white/10 hover:ring-white/30 transition-all"
+                      style={{ background: activeColorScheme.gradient }}
+                   ></div>
+                </div>
+
+                {/* Slider for Exponent */}
+                <div className="flex items-center gap-2 w-36 group-hover:opacity-100 opacity-60 transition-opacity">
+                   <span className="text-[8px] font-mono opacity-50">SENSITIVITY</span>
+                   <input 
+                      type="range" 
+                      min="0.1" 
+                      max="1.5" 
+                      step="0.1" 
+                      value={colorExponent}
+                      onChange={(e) => setColorExponent(parseFloat(e.target.value))}
+                      className="w-full h-1 bg-gray-400/30 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500"
+                      title={`Adjust Scale Exponent: ${colorExponent}`}
+                   />
+                </div>
             </div>
 
           </div>
@@ -314,7 +354,14 @@ const App: React.FC = () => {
         </div>
 
         {/* Graph Component */}
-        <GraphView key={activePhaseId} data={currentGraph} language={displayLanguage} theme={theme} />
+        <GraphView 
+          key={`${activePhaseId}-${colorSchemeIdx}`} 
+          data={currentGraph} 
+          language={displayLanguage} 
+          theme={theme}
+          colorScheme={activeColorScheme.id}
+          colorExponent={colorExponent}
+        />
 
         {/* Timeline Control */}
         {hasTimeline && (
