@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from docx import Document
+import networkx as nx
 
 # -------------------------
 # Logging
@@ -134,7 +135,7 @@ def _clamp_weight(edges: list) -> None:
         vis["weight"] = w
 
 
-def _add_degree_and_size_to_graph(graph: dict) -> dict:
+def _calculate_graph_metrics(graph: dict) -> dict:
     nodes = graph.get("nodes", [])
     edges = graph.get("edges", [])
     detected_language = graph.get("detected_language", "English")
@@ -142,22 +143,27 @@ def _add_degree_and_size_to_graph(graph: dict) -> dict:
     if not isinstance(nodes, list) or not isinstance(edges, list):
         raise ValueError("Graph JSON must contain 'nodes'(list) and 'edges'(list).")
 
-    node_ids = []
+    # 1. Prepare NetworkX Graph
+    G = nx.Graph()
+
+    # Normalize Node IDs
+    node_map = {} # Map ID to Node Object
     for n in nodes:
         if isinstance(n, dict) and n.get("id") is not None:
             n["id"] = str(n["id"])
-            node_ids.append(n["id"])
-
+            
+            # Bilingual fillers
             if "label_en" not in n and "label" in n:
                 n["label_en"] = n["label"]
                 n["label_original"] = n["label"]
             if "description_en" not in n and "description" in n:
                 n["description_en"] = n["description"]
                 n["description_original"] = n["description"]
+            
+            G.add_node(n["id"])
+            node_map[n["id"]] = n
 
-    node_set = set(node_ids)
-
-    degree = Counter()
+    # Normalize Edges & Build Graph
     valid_edges = []
     for e in edges:
         if not isinstance(e, dict):
@@ -172,11 +178,11 @@ def _add_degree_and_size_to_graph(graph: dict) -> dict:
         e["source"] = s
         e["target"] = t
 
-        if s in node_set and t in node_set:
+        if s in node_map and t in node_map:
             valid_edges.append(e)
-            degree[s] += 1
-            degree[t] += 1
+            G.add_edge(s, t)
 
+            # Bilingual fillers for edges
             rel = e.get("relation", {})
             if isinstance(rel, dict):
                 if "label_en" not in rel and "label" in rel:
@@ -189,17 +195,36 @@ def _add_degree_and_size_to_graph(graph: dict) -> dict:
                     rel["type_en"] = rel["type"]
                     rel["type_original"] = rel["type"]
 
+    # 2. Calculate Metrics using NetworkX
+    
+    # Degree (for Size)
+    degrees = dict(G.degree())
+    
+    # Betweenness Centrality (for Color/Heatmap)
+    # This detects "bridges" - nodes that connect different clusters
+    try:
+        betweenness = nx.betweenness_centrality(G)
+    except Exception as e:
+        logger.warning(f"Betweenness calculation failed: {e}")
+        betweenness = {n: 0 for n in G.nodes()}
+
+    # 3. Assign metrics back to nodes
     for n in nodes:
         if not isinstance(n, dict):
             continue
-        nid = str(n.get("id", ""))
-        d = int(degree.get(nid, 0))
-        n["centrality"] = d
-        vis = n.get("visual")
-        if not isinstance(vis, dict):
-            vis = {}
-            n["visual"] = vis
-        vis["size"] = 15 + (d * 5)
+        nid = n.get("id")
+        if nid in node_map:
+            # We use Betweenness for the 'centrality' field now (Influence)
+            n["centrality"] = float(betweenness.get(nid, 0.0))
+            
+            vis = n.get("visual")
+            if not isinstance(vis, dict):
+                vis = {}
+                n["visual"] = vis
+            
+            # We use Degree for Visual Size (Popularity)
+            d = degrees.get(nid, 0)
+            vis["size"] = 15 + (d * 5)
 
     _ensure_edge_ids(valid_edges)
     _clamp_weight(valid_edges)
@@ -224,13 +249,13 @@ def _process_model_output(parsed: dict) -> dict:
                 continue
             graph = phase.get("graph")
             if isinstance(graph, dict):
-                phase["graph"] = _add_degree_and_size_to_graph(graph)
+                phase["graph"] = _calculate_graph_metrics(graph)
             else:
-                logger.warning(f"Phase {i} missing graph object; skipped centrality/size fill.")
+                logger.warning(f"Phase {i} missing graph object; skipped metrics.")
 
         return {"timeline": timeline}
 
-    return _add_degree_and_size_to_graph(parsed)
+    return _calculate_graph_metrics(parsed)
 
 
 # -------------------------
@@ -518,8 +543,6 @@ async def analyze_content(
 
     except Exception as e:
         logger.error(f"Analysis Setup Error: {e}")
-        # Only cleanup here if we haven't started streaming. 
-        # If streaming started, we catch it inside the generator.
         if temp_video_path and os.path.exists(temp_video_path):
             try:
                 os.remove(temp_video_path)

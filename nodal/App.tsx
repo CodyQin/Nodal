@@ -6,6 +6,83 @@ import TimelineControl from './components/TimelineControl';
 import { AnalysisResult, GraphData, Phase, Node, Edge } from './types';
 import { ArrowLeft, Languages, Download, Sun, Moon } from 'lucide-react';
 
+// Helper to calculate Betweenness Centrality (Brandes Algorithm)
+// We calculate this on the frontend for the merged "Overview" graph
+const calculateBetweenness = (nodes: Node[], edges: Edge[]) => {
+  const adjacency: Record<string, string[]> = {};
+  nodes.forEach(n => { adjacency[n.id] = []; });
+  
+  edges.forEach(e => {
+    const s = typeof e.source === 'object' ? (e.source as any).id : e.source;
+    const t = typeof e.target === 'object' ? (e.target as any).id : e.target;
+    if (adjacency[s] && adjacency[t]) {
+      adjacency[s].push(t);
+      adjacency[t].push(s);
+    }
+  });
+
+  const betweenness: Record<string, number> = {};
+  nodes.forEach(n => { betweenness[n.id] = 0; });
+
+  nodes.forEach(sNode => {
+    const s = sNode.id;
+    const stack: string[] = [];
+    const P: Record<string, string[]> = {};
+    const sigma: Record<string, number> = {};
+    const d: Record<string, number> = {};
+
+    nodes.forEach(n => {
+      P[n.id] = [];
+      sigma[n.id] = 0;
+      d[n.id] = -1;
+    });
+
+    sigma[s] = 1;
+    d[s] = 0;
+    const Q: string[] = [s];
+
+    while (Q.length > 0) {
+      const v = Q.shift()!;
+      stack.push(v);
+
+      (adjacency[v] || []).forEach(w => {
+        if (d[w] < 0) {
+          Q.push(w);
+          d[w] = d[v] + 1;
+        }
+        if (d[w] === d[v] + 1) {
+          sigma[w] += sigma[v];
+          P[w].push(v);
+        }
+      });
+    }
+
+    const delta: Record<string, number> = {};
+    nodes.forEach(n => { delta[n.id] = 0; });
+
+    while (stack.length > 0) {
+      const w = stack.pop()!;
+      P[w].forEach(v => {
+        delta[v] += (sigma[v] / sigma[w]) * (1 + delta[w]);
+      });
+      if (w !== s) {
+        betweenness[w] += delta[w];
+      }
+    }
+  });
+
+  // Normalize (undirected graph)
+  const N = nodes.length;
+  if (N > 2) {
+    const scale = 2 / ((N - 1) * (N - 2));
+    Object.keys(betweenness).forEach(k => {
+      betweenness[k] *= scale;
+    });
+  }
+
+  return betweenness;
+};
+
 const App: React.FC = () => {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [displayLanguage, setDisplayLanguage] = useState<'original' | 'en'>('original');
@@ -39,30 +116,23 @@ const App: React.FC = () => {
         if (!nodesMap.has(n.id)) {
           nodesMap.set(n.id, { ...n });
         }
-        // We could accumulate descriptions or update labels if they change, 
-        // but for now we stick to the first occurrence or specific logic.
       });
 
       // Collect Edges
       phase.graph.edges.forEach(e => {
-        // Unique key for edges based on source-target-type
-        // We handle objects or strings for source/target just in case
         const sId = typeof e.source === 'object' ? (e.source as any).id : e.source;
         const tId = typeof e.target === 'object' ? (e.target as any).id : e.target;
-        // Use type_en for uniqueness
         const type = e.relation.type_en || e.relation.type || 'unknown';
         
         const key = `${sId}-${tId}-${type}`;
         
         if (!edgesMap.has(key)) {
-           // Ensure source/target are strings for the merged graph initially
            edgesMap.set(key, { 
              ...e, 
              source: sId, 
              target: tId 
             });
            
-           // Count degree for centrality recalculation
            degreeCount.set(sId, (degreeCount.get(sId) || 0) + 1);
            degreeCount.set(tId, (degreeCount.get(tId) || 0) + 1);
         }
@@ -72,10 +142,17 @@ const App: React.FC = () => {
     const nodes = Array.from(nodesMap.values());
     const edges = Array.from(edgesMap.values());
 
-    // Recalculate centrality and visual size for the Overview
+    // Calculate Centrality (Betweenness) locally for the overview
+    const betweennessScores = calculateBetweenness(nodes, edges);
+
+    // Apply metrics
     nodes.forEach(n => {
       const d = degreeCount.get(n.id) || 0;
-      n.centrality = d;
+      
+      // Use Betweenness for Centrality field (Influence)
+      n.centrality = betweennessScores[n.id] || 0;
+      
+      // Use Degree for Size (Popularity)
       n.visual = {
         ...n.visual,
         size: 15 + (d * 5)

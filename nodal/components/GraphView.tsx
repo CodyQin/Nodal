@@ -1,7 +1,22 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import * as d3 from 'd3';
-import { GraphData, Node, Edge } from '../types';
-import { Info, X, RotateCcw, MousePointer2, Activity } from 'lucide-react';
+import { 
+  select, 
+  zoom, 
+  zoomIdentity, 
+  forceSimulation, 
+  forceLink, 
+  forceManyBody, 
+  forceCollide, 
+  forceX, 
+  forceY, 
+  interpolateRgbBasis, 
+  scalePow,
+  drag, 
+  color as d3Color, 
+  extent 
+} from 'd3';
+import { GraphData } from '../types';
+import { X, RotateCcw, MousePointer2, Activity, Zap, Info, ExternalLink, Move, MousePointerClick, Search } from 'lucide-react';
 
 interface GraphViewProps {
   data: GraphData;
@@ -14,6 +29,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
   const [resetKey, setResetKey] = useState(0);
+  const [showGuide, setShowGuide] = useState(false); // Toggle for the help panel
 
   const [selectedElement, setSelectedElement] = useState<{ 
     type: 'node' | 'edge';
@@ -22,8 +38,10 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
     y: number;
   } | null>(null);
 
-  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
-  const svgSelectionRef = useRef<d3.Selection<SVGSVGElement, unknown, null, undefined> | null>(null);
+  // Using any for d3 types to avoid namespace import issues
+  const zoomRef = useRef<any>(null);
+  const svgSelectionRef = useRef<any>(null);
+  const simulationRef = useRef<any>(null);
 
   const isDark = theme === 'dark';
 
@@ -67,6 +85,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
     return color;
   };
 
+  // Compute stats and neighbors
   const processedData = useMemo(() => {
     const nodes = data.nodes.map(d => ({ ...d, degree: 0 }));
     const links = data.edges.map(d => ({ ...d }));
@@ -85,13 +104,16 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
       neighbors.get(link.target as string)?.add(link.source as string);
     });
 
-    return { nodes, links, neighbors };
+    // Determine max centrality for scaling color
+    const maxCentrality = Math.max(...nodes.map(n => n.centrality), 0.01);
+
+    return { nodes, links, neighbors, maxCentrality };
   }, [data, resetKey]);
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || !processedData.nodes.length) return;
 
-    d3.select(svgRef.current).selectAll("*").remove();
+    select(svgRef.current).selectAll("*").remove();
 
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
@@ -99,55 +121,49 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
     const nodes = processedData.nodes.map(d => ({ ...d }));
     const links = processedData.links.map(d => ({ ...d }));
 
-    const svg = d3.select(svgRef.current)
+    const svg = select(svgRef.current)
       .attr("viewBox", [0, 0, width, height])
       .style("cursor", "grab");
     
     svgSelectionRef.current = svg;
 
+    // Define Gradients for Bubble Effect
     const defs = svg.append("defs");
+    
+    // Create a generic highlight gradient
+    const radialGradient = defs.append("radialGradient")
+        .attr("id", "bubble-shine")
+        .attr("cx", "30%")
+        .attr("cy", "30%")
+        .attr("r", "70%");
+    
+    radialGradient.append("stop")
+        .attr("offset", "0%")
+        .attr("stop-color", "#fff")
+        .attr("stop-opacity", 0.4);
 
-    // --- Node Gradients (Theme Aware) ---
-    // Dark Mode: Sky-200 -> Blue-500 -> Blue-900
-    // Light Mode: White/Sky-50 -> Sky-300 -> Sky-600
-    const nodeGradient = defs.append("radialGradient")
-      .attr("id", "nodeGradient")
-      .attr("cx", "30%") 
-      .attr("cy", "30%")
-      .attr("r", "70%");
-
-    nodeGradient.append("stop")
-      .attr("offset", "0%")
-      .attr("stop-color", isDark ? "#bae6fd" : "#f0f9ff") // sky-200 / sky-50
-      .attr("stop-opacity", 1);
-
-    nodeGradient.append("stop")
-      .attr("offset", "60%")
-      .attr("stop-color", isDark ? "#3b82f6" : "#7dd3fc") // blue-500 / sky-300
-      .attr("stop-opacity", 1);
-
-    nodeGradient.append("stop")
-      .attr("offset", "100%")
-      .attr("stop-color", isDark ? "#1e3a8a" : "#0284c7") // blue-900 / sky-600
-      .attr("stop-opacity", 1);
+    radialGradient.append("stop")
+        .attr("offset", "100%")
+        .attr("stop-color", "#fff")
+        .attr("stop-opacity", 0);
 
     const g = svg.append("g");
 
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
+    const zoomBehavior = zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.1, 8]) 
       .on("zoom", (event) => {
         g.attr("transform", event.transform);
       });
 
-    svg.call(zoom);
-    zoomRef.current = zoom;
+    svg.call(zoomBehavior);
+    zoomRef.current = zoomBehavior;
 
-    const simulation = d3.forceSimulation(nodes)
-      .force("link", d3.forceLink(links).id((d: any) => d.id).distance(120))
-      .force("charge", d3.forceManyBody().strength((d: any) => -300 - (d.degree * 20)))
-      .force("collide", d3.forceCollide().radius((d: any) => (d.visual?.size || 20) + 15).iterations(2))
-      .force("x", d3.forceX(width / 2).strength(0.08)) 
-      .force("y", d3.forceY(height / 2).strength(0.12));
+    const simulation = forceSimulation(nodes)
+      .force("link", forceLink(links).id((d: any) => d.id).distance(120))
+      .force("charge", forceManyBody().strength((d: any) => -300 - (d.degree * 20)))
+      .force("collide", forceCollide().radius((d: any) => (d.visual?.size || 20) + 15).iterations(2))
+      .force("x", forceX(width / 2).strength(0.08)) 
+      .force("y", forceY(height / 2).strength(0.12));
 
     simulationRef.current = simulation;
 
@@ -155,6 +171,22 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
     simulation.stop(); 
     const initialTicks = 120;
     for (let i = 0; i < initialTicks; ++i) simulation.tick();
+
+    // --- Heatmap Color Scale (Log/Power adjustment) ---
+    // Using a power scale (sqrt or cubic root) to make smaller values more visible
+    // Dark: Slate -> Blue -> Hot Pink
+    // Light: Slate -> Blue -> Red
+    const colorInterpolator = isDark 
+      ? interpolateRgbBasis(["#334155", "#60a5fa", "#f43f5e"]) 
+      : interpolateRgbBasis(["#cbd5e1", "#3b82f6", "#e11d48"]);
+
+    // Scale 0 -> maxCentrality maps to 0 -> 1, but with a power curve to boost low values
+    const normScale = scalePow()
+      .exponent(0.4) // Makes differences in low values more apparent
+      .domain([0, processedData.maxCentrality || 1])
+      .range([0, 1]);
+
+    const getColor = (val: number) => colorInterpolator(normScale(val));
 
     // --- Render Links ---
     const link = g.append("g")
@@ -173,108 +205,55 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
         setSelectedElement({ type: 'edge', data: d, x, y });
       })
       .on("mouseenter", function() {
-          d3.select(this).attr("stroke-opacity", 1);
+          select(this).attr("stroke-opacity", 1);
       })
       .on("mouseleave", function() {
-          d3.select(this).attr("stroke-opacity", 0.6);
+          select(this).attr("stroke-opacity", 0.6);
       });
 
-    // --- Render Nodes ---
-    const node = g.append("g")
+    // --- Render Nodes (Bubble Style) ---
+    const nodeGroup = g.append("g")
       .attr("class", "nodes")
-      .selectAll("circle")
+      .selectAll("g")
       .data(nodes)
-      .join("circle")
-      .attr("r", (d: any) => (d.visual?.size || 10) + (Math.sqrt(d.degree) * 2)) 
-      .attr("fill", "url(#nodeGradient)") 
-      .attr("stroke", isDark ? "#93c5fd" : "#0ea5e9") // sky-300 / sky-500
-      .attr("stroke-width", 1.5)
-      .attr("stroke-opacity", 0.8)
-      .style("filter", isDark 
-         ? "drop-shadow(0 0 4px rgba(59, 130, 246, 0.6))" 
-         : "drop-shadow(0 1px 3px rgba(0, 0, 0, 0.2))"
-      ) 
-      .style("cursor", "pointer")
-      .call(d3.drag<any, any>()
+      .join("g")
+      .call(drag<any, any>()
         .on("start", dragstarted)
         .on("drag", dragged)
-        .on("end", dragended))
+        .on("end", dragended));
+
+    // Base Circle
+    nodeGroup.append("circle")
+      .attr("r", (d: any) => (d.visual?.size || 10) + (Math.sqrt(d.degree) * 2)) 
+      .attr("fill", (d: any) => getColor(d.centrality))
+      .attr("stroke", isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)")
+      .attr("stroke-width", 1.5)
+      .style("filter", isDark 
+         ? "drop-shadow(0 0 6px rgba(0, 0, 0, 0.6))" 
+         : "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2))"
+      );
+
+    // Shine/Gloss Effect (Bubble)
+    nodeGroup.append("circle")
+      .attr("r", (d: any) => (d.visual?.size || 10) + (Math.sqrt(d.degree) * 2))
+      .attr("fill", "url(#bubble-shine)")
+      .style("pointer-events", "none");
+
+    // Interaction Events
+    nodeGroup
+      .style("cursor", "pointer")
       .on("click", (event, d) => {
         event.stopPropagation();
         const { x, y } = getRelativePosition(event);
         setSelectedElement({ type: 'node', data: d, x, y });
-      });
-
-    // --- Render Labels ---
-    const text = g.append("g")
-      .selectAll("text")
-      .data(nodes)
-      .join("text")
-      .text((d: any) => getText(d, 'label'))
-      .attr("font-size", (d: any) => 10 + Math.sqrt(d.degree))
-      .attr("fill", isDark ? "#e2e8f0" : "#0f172a") // slate-200 / slate-900
-      .attr("dx", (d: any) => (d.visual?.size || 10) + 8)
-      .attr("dy", 4)
-      .style("pointer-events", "none")
-      // Only use strong shadow in dark mode, light mode gets a white halo for contrast
-      .style("text-shadow", isDark 
-          ? "0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,1)"
-          : "0 1px 2px rgba(255,255,255,0.8), 0 0 3px rgba(255,255,255,1)"
-      ); 
-      
-    updatePositions(); 
-    
-    // Fit To Screen
-    const xExtent = d3.extent(nodes, (d: any) => d.x) as [number, number];
-    const yExtent = d3.extent(nodes, (d: any) => d.y) as [number, number];
-    
-    if (xExtent[0] !== undefined && yExtent[0] !== undefined) {
-      const graphWidth = xExtent[1] - xExtent[0];
-      const graphHeight = yExtent[1] - yExtent[0];
-      let scale = 0.9 / Math.max(graphWidth / width, graphHeight / height);
-      scale = Math.min(scale, 1.2); 
-      
-      const centerX = (xExtent[0] + xExtent[1]) / 2;
-      const centerY = (yExtent[0] + yExtent[1]) / 2;
-      
-      const transform = d3.zoomIdentity
-        .translate(width / 2, height / 2)
-        .scale(scale)
-        .translate(-centerX, -centerY);
-
-      svg.transition().duration(1000).call(zoom.transform, transform);
-    }
-
-    simulation.alpha(0.1).restart();
-    simulation.on("tick", updatePositions);
-
-    function updatePositions() {
-      link
-        .attr("x1", (d: any) => d.source.x)
-        .attr("y1", (d: any) => d.source.y)
-        .attr("x2", (d: any) => d.target.x)
-        .attr("y2", (d: any) => d.target.y);
-      node
-        .attr("cx", (d: any) => d.x)
-        .attr("cy", (d: any) => d.y);
-      text
-        .attr("x", (d: any) => d.x)
-        .attr("y", (d: any) => d.y);
-    }
-
-    // --- Hover Highlight Logic ---
-    node
+      })
       .on("mouseenter", function(event, d: any) {
         const connectedNodeIds = processedData.neighbors.get(d.id);
         
-        node.transition().duration(200)
+        // Dim others
+        nodeGroup.transition().duration(200)
           .style("opacity", (n: any) => 
             (n.id === d.id || connectedNodeIds?.has(n.id)) ? 1 : 0.1
-          )
-          .style("filter", (n: any) => 
-            (n.id === d.id || connectedNodeIds?.has(n.id)) 
-              ? (isDark ? "drop-shadow(0 0 10px rgba(96, 165, 250, 0.9))" : "drop-shadow(0 0 6px rgba(14, 165, 233, 0.6))")
-              : "none"
           );
         
         text.transition().duration(200)
@@ -293,13 +272,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
           });
       })
       .on("mouseleave", function() {
-        node.transition().duration(200)
-          .style("opacity", 1)
-          .style("filter", isDark 
-            ? "drop-shadow(0 0 4px rgba(59, 130, 246, 0.6))" 
-            : "drop-shadow(0 1px 3px rgba(0, 0, 0, 0.2))"
-          );
-
+        nodeGroup.transition().duration(200).style("opacity", 1);
         text.transition().duration(200).style("opacity", 1);
         link.transition().duration(200)
           .style("opacity", 1)
@@ -308,11 +281,68 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
           .attr("stroke-width", (d: any) => getLinkWidth(d.visual?.weight, false));
       });
 
+    // --- Render Labels ---
+    const text = g.append("g")
+      .selectAll("text")
+      .data(nodes)
+      .join("text")
+      .text((d: any) => getText(d, 'label'))
+      .attr("font-size", (d: any) => 10 + Math.sqrt(d.degree))
+      .attr("fill", isDark ? "#e2e8f0" : "#0f172a") // slate-200 / slate-900
+      .attr("dx", (d: any) => (d.visual?.size || 10) + 8)
+      .attr("dy", 4)
+      .style("pointer-events", "none")
+      .style("text-shadow", isDark 
+          ? "0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,1)"
+          : "0 1px 2px rgba(255,255,255,0.8), 0 0 3px rgba(255,255,255,1)"
+      ); 
+      
+    updatePositions(); 
+    
+    // Fit To Screen
+    const xExtent = extent(nodes, (d: any) => d.x) as [number, number];
+    const yExtent = extent(nodes, (d: any) => d.y) as [number, number];
+    
+    if (xExtent[0] !== undefined && yExtent[0] !== undefined) {
+      const graphWidth = xExtent[1] - xExtent[0];
+      const graphHeight = yExtent[1] - yExtent[0];
+      let scale = 0.9 / Math.max(graphWidth / width, graphHeight / height);
+      scale = Math.min(scale, 1.2); 
+      
+      const centerX = (xExtent[0] + xExtent[1]) / 2;
+      const centerY = (yExtent[0] + yExtent[1]) / 2;
+      
+      const transform = zoomIdentity
+        .translate(width / 2, height / 2)
+        .scale(scale)
+        .translate(-centerX, -centerY);
+
+      svg.transition().duration(1000).call(zoomBehavior.transform, transform);
+    }
+
+    simulation.alpha(0.1).restart();
+    simulation.on("tick", updatePositions);
+
+    function updatePositions() {
+      link
+        .attr("x1", (d: any) => d.source.x)
+        .attr("y1", (d: any) => d.source.y)
+        .attr("x2", (d: any) => d.target.x)
+        .attr("y2", (d: any) => d.target.y);
+      
+      // Update Groups (containing circle + shine)
+      nodeGroup.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
+      
+      text
+        .attr("x", (d: any) => d.x)
+        .attr("y", (d: any) => d.y);
+    }
+
     function dragstarted(event: any) {
       if (!event.active) simulation.alphaTarget(0.3).restart();
       event.subject.fx = event.subject.x;
       event.subject.fy = event.subject.y;
-      d3.select(svgRef.current).style("cursor", "grabbing");
+      select(svgRef.current).style("cursor", "grabbing");
     }
     function dragged(event: any) {
       event.subject.fx = event.x;
@@ -322,7 +352,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
       if (!event.active) simulation.alphaTarget(0);
       event.subject.fx = null;
       event.subject.fy = null;
-      d3.select(svgRef.current).style("cursor", "grab");
+      select(svgRef.current).style("cursor", "grab");
     }
 
     svg.on("click", () => setSelectedElement(null));
@@ -331,9 +361,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
       simulation.stop();
     };
 
-  }, [processedData, language, resetKey, theme]); // Added theme dependency
-
-  const simulationRef = useRef<d3.Simulation<any, undefined> | null>(null);
+  }, [processedData, language, resetKey, theme]);
 
   const handleResetLayout = () => {
     setSelectedElement(null);
@@ -358,18 +386,124 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
 
   // Popup Panel Theme Classes
   const panelClasses = isDark 
-    ? "bg-black/60 border-white/10 text-white shadow-2xl backdrop-blur-md" 
-    : "bg-white/80 border-slate-200 text-slate-800 shadow-xl backdrop-blur-md";
+    ? "bg-black/80 border-white/20 text-white shadow-2xl backdrop-blur-md" 
+    : "bg-white/90 border-slate-200 text-slate-800 shadow-xl backdrop-blur-md";
   
   const panelTextSecondary = isDark ? "text-gray-400" : "text-slate-500";
   const panelTextDesc = isDark ? "text-gray-200" : "text-slate-600";
-  const badgeBg = isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-700";
+  const badgeBg = isDark ? "bg-white/10 text-gray-200" : "bg-slate-100 text-slate-600";
+  const hotBadgeBg = isDark ? "bg-rose-500/30 text-rose-300" : "bg-rose-100 text-rose-700";
 
   return (
     <div className={`relative w-full h-full overflow-hidden select-none transition-colors duration-500 ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`} ref={containerRef}>
       <svg ref={svgRef} className="w-full h-full block"></svg>
 
-      {/* Info Panel */}
+      {/* Graph Guide Trigger Button - Replaces static legend */}
+      <button 
+        onClick={() => setShowGuide(!showGuide)}
+        className={`absolute top-20 left-4 z-40 px-3 py-2 rounded-lg border backdrop-blur-md flex items-center gap-2 shadow-lg transition-all active:scale-95 ${isDark ? 'bg-black/30 border-white/10 text-white hover:bg-white/10' : 'bg-white/60 border-slate-200 text-slate-700 hover:bg-white/80'}`}
+      >
+         <Info size={16} className={isDark ? "text-blue-400" : "text-blue-600"} />
+         <span className="text-xs font-semibold uppercase tracking-wide">Graph Guide</span>
+      </button>
+
+      {/* Graph Guide Modal/Panel */}
+      {showGuide && (
+         <div className={`absolute top-32 left-4 z-50 w-80 rounded-xl border shadow-2xl backdrop-blur-xl animate-in slide-in-from-left-4 fade-in duration-300 flex flex-col ${isDark ? 'bg-black/80 border-white/20' : 'bg-white/95 border-slate-200'}`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between p-4 border-b ${isDark ? 'border-white/10' : 'border-slate-100'}`}>
+               <h3 className={`font-bold text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                 <Activity size={16} className="text-blue-500" />
+                 Graph Visualization Guide
+               </h3>
+               <button onClick={() => setShowGuide(false)} className={`transition-opacity hover:opacity-100 opacity-60 ${isDark ? 'text-white' : 'text-slate-600'}`}>
+                 <X size={16} />
+               </button>
+            </div>
+
+            <div className="p-4 space-y-5 overflow-y-auto max-h-[60vh] custom-scrollbar">
+               {/* Section 1: Visual Encoding */}
+               <div className="space-y-3">
+                  <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Visual Encoding</h4>
+                  
+                  {/* Visual: Color Legend */}
+                  <div className={`p-3 rounded-lg border ${isDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                     <div className="flex justify-between items-center text-xs mb-2">
+                        <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-slate-700'}`}>Color = Influence</span>
+                        <span className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>(Betweenness Centrality)</span>
+                     </div>
+                     <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-slate-400'}`}>Low</span>
+                        <div className={`flex-1 h-2 rounded-full ${isDark ? 'bg-gradient-to-r from-[#334155] via-[#60a5fa] to-[#f43f5e]' : 'bg-gradient-to-r from-[#cbd5e1] via-[#3b82f6] to-[#e11d48]'}`}></div>
+                        <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-slate-400'}`}>High</span>
+                     </div>
+                     <p className={`text-[10px] leading-tight mt-1 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+                       Red nodes act as "bridges" connecting different groups.
+                     </p>
+                  </div>
+
+                  {/* Visual: Size Legend */}
+                  <div className={`p-3 rounded-lg border flex items-center gap-3 ${isDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                     <div className="flex items-end gap-1 px-1">
+                        <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-500' : 'bg-slate-400'}`}></div>
+                        <div className={`w-3 h-3 rounded-full ${isDark ? 'bg-slate-500' : 'bg-slate-400'}`}></div>
+                        <div className={`w-4 h-4 rounded-full ${isDark ? 'bg-slate-500' : 'bg-slate-400'}`}></div>
+                     </div>
+                     <div>
+                        <div className="flex justify-between items-center text-xs">
+                           <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-slate-700'}`}>Size = Connections</span>
+                        </div>
+                        <p className={`text-[10px] leading-tight ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+                           (Degree Centrality)
+                        </p>
+                     </div>
+                  </div>
+               </div>
+
+               {/* Section 2: Concepts */}
+               <div className="space-y-3">
+                  <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Key Concepts</h4>
+                  
+                  <div className="space-y-2">
+                     <div>
+                        <a href="https://en.wikipedia.org/wiki/Centrality#Degree_centrality" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-bold text-blue-500 hover:underline">
+                           Degree Centrality <ExternalLink size={10} />
+                        </a>
+                        <p className={`text-[11px] leading-relaxed mt-0.5 ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>
+                           The number of direct relationships a character has. High degree nodes are "popular" or active characters.
+                        </p>
+                     </div>
+                     <div>
+                        <a href="https://en.wikipedia.org/wiki/Betweenness_centrality" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-bold text-rose-500 hover:underline">
+                           Betweenness Centrality <ExternalLink size={10} />
+                        </a>
+                        <p className={`text-[11px] leading-relaxed mt-0.5 ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>
+                           Measures how often a node acts as a bridge along the shortest path between two other nodes. High betweenness characters connect disparate social circles.
+                        </p>
+                     </div>
+                  </div>
+               </div>
+
+               {/* Section 3: Navigation */}
+               <div className="space-y-3">
+                  <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Navigation</h4>
+                  <div className={`grid grid-cols-2 gap-2 text-[11px] ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>
+                     <div className="flex items-center gap-2">
+                        <Move size={12} className="text-blue-500" /> Pan / Drag Graph
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <Search size={12} className="text-blue-500" /> Scroll to Zoom
+                     </div>
+                     <div className="flex items-center gap-2 col-span-2">
+                        <MousePointerClick size={12} className="text-blue-500" /> Click nodes/edges for details
+                     </div>
+                  </div>
+               </div>
+            </div>
+         </div>
+      )}
+
+      {/* Info Panel for Selected Element */}
       {selectedElement && (
         <div 
           className={`absolute z-50 max-w-xs rounded-xl p-4 animate-in fade-in zoom-in-95 duration-200 border ${panelClasses}`}
@@ -384,15 +518,27 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme }) => {
           
           {selectedElement.type === 'node' ? (
             <>
-              <h2 className={`text-xl font-bold mb-1 pr-6 ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>{getText(selectedElement.data, 'label')}</h2>
-              <div className="mb-2 flex items-center gap-2">
-                <span className={`text-[10px] uppercase tracking-wider ${panelTextSecondary}`}>Degree</span>
-                <span className={`text-xs font-mono px-1.5 rounded ${badgeBg}`}>
-                  {processedData.nodes.find(n => n.id === selectedElement.data.id)?.degree || 0}
-                </span>
-                <span className={`text-[10px] uppercase tracking-wider ml-2 ${panelTextSecondary}`}>Centrality</span>
-                <span className={`text-xs font-mono ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>{selectedElement.data.centrality}</span>
+              <h2 className={`text-xl font-bold mb-1 pr-6 flex items-center gap-2 ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                 {getText(selectedElement.data, 'label')}
+              </h2>
+              
+              <div className="mb-3 grid grid-cols-2 gap-2 mt-2">
+                <div className={`flex flex-col p-2 rounded ${badgeBg}`}>
+                    <span className={`text-[9px] uppercase tracking-wider opacity-70`}>Connections (Size)</span>
+                    <span className="text-sm font-mono font-bold">
+                        {processedData.nodes.find(n => n.id === selectedElement.data.id)?.degree || 0}
+                    </span>
+                </div>
+                <div className={`flex flex-col p-2 rounded ${hotBadgeBg}`}>
+                    <span className={`text-[9px] uppercase tracking-wider opacity-70 flex items-center gap-1`}>
+                       <Zap size={10} /> Influence (Color)
+                    </span>
+                    <span className="text-sm font-mono font-bold">
+                        {(selectedElement.data.centrality || 0).toFixed(3)}
+                    </span>
+                </div>
               </div>
+
               <div className="max-h-40 overflow-y-auto custom-scrollbar pr-1">
                 <p className={`text-xs leading-relaxed ${panelTextDesc}`}>{getText(selectedElement.data, 'description')}</p>
               </div>
