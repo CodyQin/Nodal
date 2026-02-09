@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Clock, ChevronUp, ChevronDown, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Clock, ChevronUp, ChevronDown, BookOpen, Calendar } from 'lucide-react';
 import { Phase } from '../types';
 
 interface TimelineControlProps {
@@ -90,50 +90,59 @@ const TimelineControl: React.FC<TimelineControlProps> = ({ phases, activePhaseId
         </div>
       )}
 
-      {/* Timeline Strip */}
-      <div className={`backdrop-blur-md border rounded-2xl p-2 shadow-2xl flex items-center gap-2 overflow-x-auto custom-scrollbar w-full max-w-full ${timelineBg}`}>
+      {/* Timeline Strip Container */}
+      <div className={`flex flex-col w-full max-w-full backdrop-blur-md border rounded-2xl p-2 shadow-2xl ${timelineBg}`}>
         
-        {/* Overview Button */}
-        <button
-          onClick={() => {
-            onPhaseSelect('overview');
-            setIsSummaryExpanded(false);
-          }}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all whitespace-nowrap flex-shrink-0 ${
-            activePhaseId === 'overview' ? btnActive : btnInactive
-          }`}
-        >
-          <LayoutDashboard size={16} />
-          <span className="text-sm font-bold">Story Overview</span>
-        </button>
+        {/* Timeline Header */}
+        <div className="flex items-center gap-2 mb-2 px-1">
+           <Calendar size={14} className={isDark ? "text-blue-400" : "text-blue-600"} />
+           <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-slate-500"}`}>Timeline</span>
+        </div>
 
-        <div className={`w-px h-8 mx-1 flex-shrink-0 ${isDark ? 'bg-white/10' : 'bg-slate-200'}`}></div>
+        {/* Scrollable Strip */}
+        <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
+          {/* Overview Button */}
+          <button
+            onClick={() => {
+              onPhaseSelect('overview');
+              setIsSummaryExpanded(false);
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all whitespace-nowrap flex-shrink-0 ${
+              activePhaseId === 'overview' ? btnActive : btnInactive
+            }`}
+          >
+            <LayoutDashboard size={16} />
+            <span className="text-sm font-bold">Story Overview</span>
+          </button>
 
-        {/* Phase Buttons */}
-        <div className="flex gap-2 items-center">
-          {phases.map((phase, index) => {
-             const isActive = activePhaseId === phase.phase_id;
-             return (
-               <button
-                 key={phase.phase_id}
-                 onClick={() => {
-                   onPhaseSelect(phase.phase_id);
-                   setIsSummaryExpanded(false); 
-                 }}
-                 className={`group relative flex flex-col items-start px-4 py-2 rounded-xl transition-all min-w-[140px] max-w-[200px] border flex-shrink-0 ${
-                   isActive ? phaseActive : phaseInactive
-                 }`}
-               >
-                 <div className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wider mb-1 opacity-70`}>
-                   <Clock size={12} className={isActive ? 'text-blue-500' : ''} />
-                   Phase {index + 1}
-                 </div>
-                 <div className="text-sm font-medium truncate w-full text-left" title={getText(phase, 'phase_name')}>
-                   {getText(phase, 'phase_name')}
-                 </div>
-               </button>
-             );
-          })}
+          <div className={`w-px h-8 mx-1 flex-shrink-0 ${isDark ? 'bg-white/10' : 'bg-slate-200'}`}></div>
+
+          {/* Phase Buttons */}
+          <div className="flex gap-2 items-center">
+            {phases.map((phase, index) => {
+              const isActive = activePhaseId === phase.phase_id;
+              return (
+                <button
+                  key={phase.phase_id}
+                  onClick={() => {
+                    onPhaseSelect(phase.phase_id);
+                    setIsSummaryExpanded(false); 
+                  }}
+                  className={`group relative flex flex-col items-start px-4 py-2 rounded-xl transition-all min-w-[140px] max-w-[200px] border flex-shrink-0 ${
+                    isActive ? phaseActive : phaseInactive
+                  }`}
+                >
+                  <div className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wider mb-1 opacity-70`}>
+                    <Clock size={12} className={isActive ? 'text-blue-500' : ''} />
+                    Phase {index + 1}
+                  </div>
+                  <div className="text-sm font-medium truncate w-full text-left" title={getText(phase, 'phase_name')}>
+                    {getText(phase, 'phase_name')}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

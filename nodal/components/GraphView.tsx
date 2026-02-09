@@ -19,7 +19,7 @@ import {
   extent 
 } from 'd3';
 import { GraphData } from '../types';
-import { X, RotateCcw, MousePointer2, Activity, Zap, Info, ExternalLink, Move, MousePointerClick, Search, Download, Calendar, MessageSquare, Palette, Sliders } from 'lucide-react';
+import { X, RotateCcw, MousePointer2, Activity, Zap, Info, ExternalLink, Move, MousePointerClick, Search, Download, Calendar, MessageSquare, Palette, Sliders, Bot, Languages, Sun, Moon } from 'lucide-react';
 
 interface GraphViewProps {
   data: GraphData;
@@ -196,11 +196,10 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
           return interpolateRdYlGn(1 - t); 
         case 'RdBu_r':
           // D3 RdBu: 0=Red, 1=Blue.
-          // We want High(1) = Red(0).
-          return interpolateRdBu(t); // This maps 0->Red? No.
-          // d3.interpolateRdBu(0) is Red. d3.interpolateRdBu(1) is Blue.
-          // We want Low(0) = Blue(1), High(1) = Red(0).
-          // So t=0 -> 1, t=1 -> 0.
+          // We want Low(0) = Blue, High(1) = Red.
+          // interpolateRdBu(0) is Red. interpolateRdBu(1) is Blue.
+          // At 0 we want Blue (so use 1). At 1 we want Red (so use 0).
+          // So use (1-t).
           return interpolateRdBu(1 - t);
         case 'Viridis_r':
            // D3 Viridis: 0=Purple, 1=Yellow.
@@ -457,21 +456,43 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
                   <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Core Features</h4>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                      <div className={`p-2 rounded border ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-                        <div className="flex items-center gap-2 font-semibold mb-1"><Download size={14} className="text-blue-500" /> Download</div>
+                        <div className={`flex items-center gap-2 font-semibold mb-1 ${isDark ? 'text-white' : 'text-slate-800'}`}><Download size={14} className="text-blue-500" /> Download</div>
                         <p className={`text-[10px] leading-tight ${panelTextSecondary}`}>Save analysis as JSON. You can re-upload this file later to reproduce results instantly.</p>
                      </div>
                      <div className={`p-2 rounded border ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-                        <div className="flex items-center gap-2 font-semibold mb-1"><Calendar size={14} className="text-blue-500" /> Timeline</div>
+                        <div className={`flex items-center gap-2 font-semibold mb-1 ${isDark ? 'text-white' : 'text-slate-800'}`}><Calendar size={14} className="text-blue-500" /> Timeline</div>
                         <p className={`text-[10px] leading-tight ${panelTextSecondary}`}>Use the bottom bar to navigate story phases or view the full "Overview" graph.</p>
                      </div>
                      <div className={`p-2 rounded border col-span-2 ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-                        <div className="flex items-center gap-2 font-semibold mb-1"><MessageSquare size={14} className="text-blue-500" /> Graph Assistant</div>
+                        <div className={`flex items-center gap-2 font-semibold mb-1 ${isDark ? 'text-white' : 'text-slate-800'}`}><Bot size={14} className="text-blue-500" /> AI Chat</div>
                         <p className={`text-[10px] leading-tight ${panelTextSecondary}`}>Ask questions about the plot, characters, or hidden relationships. The AI uses the active graph data as context.</p>
                      </div>
                   </div>
                </div>
 
-               {/* Section 2: Visual Encoding & Customization */}
+                {/* Section 2: Tools & Interface */}
+                <div className="space-y-3">
+                  <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Tools & Controls</h4>
+                  <div className={`grid grid-cols-2 gap-2 text-[11px] ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>
+                     <div className="flex items-center gap-2">
+                        <Languages size={14} className="text-blue-500" /> 
+                        <span>Translation Toggle</span>
+                     </div>
+                     <div className="flex items-center gap-2">
+                         <div className="flex gap-1">
+                             <Sun size={12} className="text-blue-500"/>
+                             <Moon size={12} className="text-blue-500"/>
+                         </div>
+                        <span>Theme Switch</span>
+                     </div>
+                     <div className="flex items-center gap-2 col-span-2">
+                        <RotateCcw size={14} className="text-blue-500" /> 
+                        <span>Reset Layout Position</span>
+                     </div>
+                  </div>
+               </div>
+
+               {/* Section 3: Visual Encoding & Customization */}
                <div className="space-y-3">
                   <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Visual Encoding</h4>
                   
@@ -488,13 +509,13 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
                      </div>
                      
                      <div className="space-y-2">
-                        <div className={`text-[10px] p-2 rounded flex items-start gap-2 ${isDark ? 'bg-black/20' : 'bg-white border'}`}>
+                        <div className={`text-[10px] p-2 rounded flex items-start gap-2 ${isDark ? 'bg-black/20 text-gray-300' : 'bg-white border text-slate-600'}`}>
                            <MousePointerClick size={12} className="mt-0.5 opacity-50" />
                            <span>
                               <strong>Click the color bar</strong> in the top header to cycle schemes (e.g., Traffic, Heat, Viridis).
                            </span>
                         </div>
-                        <div className={`text-[10px] p-2 rounded flex items-start gap-2 ${isDark ? 'bg-black/20' : 'bg-white border'}`}>
+                        <div className={`text-[10px] p-2 rounded flex items-start gap-2 ${isDark ? 'bg-black/20 text-gray-300' : 'bg-white border text-slate-600'}`}>
                            <Sliders size={12} className="mt-0.5 opacity-50" />
                            <span>
                               Use the <strong>Sensitivity Slider</strong> below the color bar to adjust contrast. Lower values make colors "hotter" faster.
@@ -521,7 +542,7 @@ const GraphView: React.FC<GraphViewProps> = ({ data, language, theme, colorSchem
                   </div>
                </div>
 
-               {/* Section 3: Navigation */}
+               {/* Section 4: Navigation */}
                <div className="space-y-3">
                   <h4 className={`text-xs uppercase tracking-wider font-bold opacity-70 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>Navigation</h4>
                   <div className={`grid grid-cols-2 gap-2 text-[11px] ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>
