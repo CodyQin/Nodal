@@ -30,6 +30,17 @@ Developed for the **[Gemini 3 Hackathon](https://gemini3.devpost.com/)** by a de
 To run the project locally, please navigate to the `nodal` directory and follow the technical documentation there.
 
 
+Here is the high-level data flow of Nodal, illustrating the dual-stream processing between Gemini 3.0 and our frontend.
+
+<img width="7641" height="3884" alt="Gemini AI Graph Pipeline-2026-02-09-235852" src="https://github.com/user-attachments/assets/f3dc1058-c93d-4b21-a374-6bb56a60aac3" />
+
+
+The system consists of three main layers:
+1. **Frontend**: React 19 handling real-time visualization.
+2. **Backend**: FastAPI performing graph theory calculations via NetworkX.
+3. **AI Layer**: Gemini 3.0 Pro providing reasoning and multimodal analysis.
+
+
 ## Inspiration
 The spark for **Nodal** ignited during a dinner conversation with friends from the **USC School of Cinematic Arts**. As they debated the complexities of screenwriting, character arcs, and plot progression, we realized a fundamental gap in their creative workflow.
 
