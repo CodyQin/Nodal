@@ -4,6 +4,8 @@
 
 🌐 **Live Demo:** [http://192.9.149.19:3000/](http://192.9.149.19:3000/)
 
+[![Nodal Video Demo](https://img.youtube.com/vi/AZJyQdsa6zc/maxresdefault.jpg)](https://www.youtube.com/watch?v=AZJyQdsa6zc "Watch the Demo")
+> 🎥 **Click the image above to watch the full demo**
 ---
 
 ## 📖 What is Nodal?
